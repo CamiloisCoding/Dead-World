@@ -1395,26 +1395,22 @@ def process_command(command):
                 add_to_history("")
         else:
             add_to_history("Hier gibt es nichts zum Schieben.")#Haustür
-            add_to_history("")
-    
-    else:
-        add_to_history("Unbekannter Befehl. Tippe 'hilfe' für Befehle.")
-        add_to_history("")
+            add_to_history("") 
 
-    elif cmd in ['schieben', 'schieb', 'regal schieben', 'schrank schieben', 'bücherregal schieben']:
+    elif cmd in ['Brech auf', 'Zerhacke tür', 'schlage tür auf', 'tür aufbrechen', 'tür mit Axt aufschalgen']:
         global haus1_tür_auf
-        if current_room == 'haus1':
+        if current_room == 'haus1' and 'axt' in player_inventory:
             if not haus1_tür_auf:
                 haus1_tür_auf = True
-                add_to_history("Du stemmst dich gegen das schwere Bücherregal...")
-                add_to_history("Mit aller Kraft schiebst du es zur Seite!")
-                add_to_history("Der Weg nach NORDEN ist jetzt frei.")
+                add_to_history("Du nimmst die Axt in die Hände")
+                add_to_history("Mit wucht schlägst du mit der Axt auf die Tür ein")
+                add_to_history("Man kann nun ins Haus rein")
                 add_to_history("")
             else:
-                add_to_history("Das Bücherregal wurde bereits zur Seite geschoben.")
+                add_to_history("Die Tür ist bereits aufgebrochen")
                 add_to_history("")
         else:
-            add_to_history("Hier gibt es nichts zum Schieben.")
+            add_to_history("Du hast nichts um die Tür zu öffnen.")
             add_to_history("")
     
     else:
