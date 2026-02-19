@@ -144,9 +144,10 @@ backspace_initial_delay = 250  # ms
 backspace_repeat_delay = 25    # ms
 last_backspace_time = 0
 
-#
+#Biblio
 bibliothek_4_schrank_geschoben = False
-
+#Haus1 Tür
+haus1_tür_auf = False
 
 # Key-Repeat für Cursor-Tasten
 delete_held = False
@@ -627,8 +628,8 @@ rooms = {
     },
     'haus_3': {#Haus3
         'name': 'haus_3',
-        'description': 'Im westen von dir ist ein Haus, die Türen stehen offen, im osten liegt der Parkplatz von Walmart. Im Süden gehsts zurück zur weggabelung.',
-        'exits': {'westen': 'haus_3_eingang', 'süden': 'nord_östliche_weggabelung', 'osten': 'parkplatz'},
+        'description': '.',
+        'exits': {'westen': '', 'süden': '', 'osten': ''},
         'items': [],
         'in_development': True
     },
@@ -671,7 +672,7 @@ rooms = {
     'haus1': {#Haus1
         'name': 'Haus 1',
         'description': 'Du stehst vor der Haustür vom Haus doch sie lässt sich nicht öffnen.',
-        'exits': {'norden': 'suedlich_haus'},
+        'exits': {'norden': 'suedlich_haus', 'osten': 'haus1_vordertür'},
         'items': [],
         'in_development': True
     },     
@@ -961,7 +962,11 @@ def move_direction(direction):
             return
         
         #
-        
+        if current_room == 'haus1' and next_room == 'haus1_vordertür' and not t:
+            add_to_history("Ein großes Bücherregal versperrt den Weg nach NORDEN.")
+            add_to_history("Vielleicht kannst du es zur Seite schieben?")
+            add_to_history("")
+            return
                 
         # Spezialfall: Zeitsprung wenn man zum Spawn geht
         if next_room == 'spawn' and current_room == 'tunnel':
@@ -1381,6 +1386,26 @@ def process_command(command):
         if current_room == 'bibliothek_3':
             if not bibliothek_4_schrank_geschoben:
                 bibliothek_4_schrank_geschoben = True
+                add_to_history("Du stemmst dich gegen das schwere Bücherregal...")
+                add_to_history("Mit aller Kraft schiebst du es zur Seite!")
+                add_to_history("Der Weg nach NORDEN ist jetzt frei.")
+                add_to_history("")
+            else:
+                add_to_history("Das Bücherregal wurde bereits zur Seite geschoben.")
+                add_to_history("")
+        else:
+            add_to_history("Hier gibt es nichts zum Schieben.")#Haustür
+            add_to_history("")
+    
+    else:
+        add_to_history("Unbekannter Befehl. Tippe 'hilfe' für Befehle.")
+        add_to_history("")
+
+    elif cmd in ['schieben', 'schieb', 'regal schieben', 'schrank schieben', 'bücherregal schieben']:
+        global haus1_tür_auf
+        if current_room == 'haus1':
+            if not haus1_tür_auf:
+                haus1_tür_auf = True
                 add_to_history("Du stemmst dich gegen das schwere Bücherregal...")
                 add_to_history("Mit aller Kraft schiebst du es zur Seite!")
                 add_to_history("Der Weg nach NORDEN ist jetzt frei.")
