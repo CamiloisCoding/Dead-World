@@ -20,17 +20,23 @@ RESOLUTION_PRESETS = [
     ('Sehr Hoch', 1920, 1080)
 ]
 current_resolution_index = 2  # Standard: Mittel (1280x720)
-# Farben
-BLACK = (0, 0, 0)
-BLOOD_RED = (139, 0, 0)
-DARK_RED = (100, 0, 0)
-GRAY = (50, 50, 50)
-LIGHT_GRAY = (100, 100, 100)
-DARK_GRAY = (30, 30, 30)
-HOVER_RED = (180, 0, 0)
+# Farben — Atmospheric Post-Apocalyptic Palette
+BLACK = (8, 6, 8)
+BLOOD_RED = (170, 20, 20)
+DARK_RED = (90, 5, 5)
+DEEP_RED = (50, 0, 0)
+GRAY = (55, 50, 55)
+LIGHT_GRAY = (120, 115, 120)
+DARK_GRAY = (22, 18, 22)
+HOVER_RED = (220, 40, 30)
 GREEN = (0, 255, 0)
-TERMINAL_GREEN = (0, 200, 0)
-TERMINAL_BG = (10, 10, 10)
+TERMINAL_GREEN = (60, 140, 255)
+TERMINAL_DIM = (30, 70, 140)
+TERMINAL_BG = (8, 10, 18)
+EMBER_ORANGE = (255, 120, 30)
+EMBER_DIM = (180, 70, 10)
+ACCENT_GLOW = (255, 60, 40)
+FOG_COLOR = (20, 18, 25)
 
 # Referenz-Auflösung für Skalierung (Basis-Layout)
 REFERENCE_WIDTH = 1280
@@ -160,6 +166,10 @@ key_repeat_delay = 35    # ms
 # Scroll-System
 scroll_offset = 0
 max_scroll = 0
+
+# Cached CRT-Scanline Surface (nur einmal erstellen)
+_scanline_cache = None
+_scanline_cache_size = (0, 0)
 
 # Kampfsystem
 
@@ -684,66 +694,127 @@ def toggle_fullscreen():
     else:
         screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
 
+def draw_vignette(surface, intensity=180):
+    """Zeichnet einen dunklen Vignette-Rahmen um den Bildschirm"""
+    w, h = surface.get_width(), surface.get_height()
+    vig = pygame.Surface((w, h), pygame.SRCALPHA)
+    # Draw concentric edge bands on one surface for performance
+    steps = 20
+    for i in range(steps):
+        t = (i / steps)
+        a = int(intensity * t * t)
+        border = i * max(w, h) // (steps * 5)
+        pygame.draw.rect(vig, (0, 0, 0, a), (0, 0, w, border))  # top
+        pygame.draw.rect(vig, (0, 0, 0, a), (0, h - border, w, border))  # bottom
+        pygame.draw.rect(vig, (0, 0, 0, a), (0, 0, border, h))  # left
+        pygame.draw.rect(vig, (0, 0, 0, a), (w - border, 0, border, h))  # right
+    surface.blit(vig, (0, 0))
+
 def draw_cracked_text(surface, text, pos, color, time, font=None):
-    """Zeichnet Text mit Rissen und Verzerrung"""
-    # Standard-Font mit Skalierung wenn keiner angegeben
+    """Zeichnet Text mit weichem Hintergrund-Glow und Schatten"""
     if font is None:
         font = get_scaled_font(120)
     
+    # Subtile Erschütterung
+    shake_x = math.sin(time * 0.003) * scale(2)
+    shake_y = math.cos(time * 0.004) * scale(1)
+    
+
+    
+    # Schatten (nur 1 Offset, sauber)
+    shadow = font.render(text, True, DEEP_RED)
+    shadow_off = scale(3)
+    shadow_rect = shadow.get_rect(center=(pos[0] + shadow_off + shake_x, pos[1] + shadow_off + shake_y))
+    surface.blit(shadow, shadow_rect)
+    
+    # Haupt-Text
     text_surface = font.render(text, True, color)
     text_rect = text_surface.get_rect(center=pos)
-    
-    # Skaliertes Schütteln
-    shake_x = math.sin(time * 0.05) * scale(3)
-    shake_y = math.cos(time * 0.07) * scale(2)
-    
-    # Skalierter Schatten
-    shadow_range = max(3, scale(5))
-    for i in range(shadow_range, 0, -1):
-        shadow = font.render(text, True, DARK_RED)
-        shadow_offset = scale(2)
-        shadow_rect = shadow.get_rect(center=(pos[0] + i*shadow_offset + shake_x, pos[1] + i*shadow_offset + shake_y))
-        surface.blit(shadow, shadow_rect)
-    
     final_rect = text_rect.move(shake_x, shake_y)
     surface.blit(text_surface, final_rect)
 
 def draw_particles(surface, time, alpha):
-    """Zeichnet fallende Partikel (Asche/Staub)"""
-    for i in range(50):
-        x = (i * 137 + time * 2) % surface.get_width()
-        y = (i * 79 + time * 3) % surface.get_height()
+    """Zeichnet Asche-Partikel und glühende Ember-Funken"""
+    w, h = surface.get_width(), surface.get_height()
+    
+    # Asche-Partikel (subtil, grau, langsam)
+    for i in range(35):
+        seed = i * 137
+        drift = math.sin(time * 0.001 + seed) * 30
+        x = (seed + int(time * 0.4) + int(drift)) % w
+        y = (i * 79 + int(time * 0.6)) % h
         size = (i % 3) + 1
-        particle_alpha = min(255, alpha)
-        color = (*LIGHT_GRAY, particle_alpha)
+        a = min(255, int(alpha * 0.6))
         
-        particle_surface = pygame.Surface((size, size), pygame.SRCALPHA)
-        particle_surface.fill(color)
-        surface.blit(particle_surface, (x, y))
+        ps = pygame.Surface((size, size), pygame.SRCALPHA)
+        ps.fill((*LIGHT_GRAY, a))
+        surface.blit(ps, (x, y))
+    
+    # Ember-Funken (orange, klein, steigen auf)
+    for i in range(15):
+        seed = i * 211 + 500
+        drift = math.sin(time * 0.002 + seed * 0.7) * 20
+        x = (seed + int(drift)) % w
+        y = h - ((i * 97 + int(time * 1.2)) % h)  # steigen auf
+        life = (time * 0.003 + i) % 1.0  # 0-1 Lebenszyklus
+        size = max(1, int(3 * (1.0 - life)))
+        a = min(255, int(alpha * (1.0 - life)))
+        
+        color = EMBER_ORANGE if i % 3 != 0 else EMBER_DIM
+        ps = pygame.Surface((size, size), pygame.SRCALPHA)
+        ps.fill((*color, a))
+        surface.blit(ps, (int(x), int(y)))
 
 def draw_cracks(surface, alpha):
-    """Zeichnet Risse im Hintergrund"""
+    """Zeichnet rot-getönte Risse mit organischeren Mustern"""
     crack_surface = pygame.Surface((surface.get_width(), surface.get_height()), pygame.SRCALPHA)
+    w, h = surface.get_width(), surface.get_height()
     
-    for i in range(8):
-        start_x = i * 150 + 50
+    for i in range(10):
+        start_x = int(i * w / 10 + 30)
         points = [(start_x, 0)]
         
         y = 0
-        while y < surface.get_height():
-            offset = math.sin(y * 0.02 + i) * 20
-            points.append((start_x + offset, y))
-            y += 50
+        while y < h:
+            primary = math.sin(y * 0.015 + i * 1.7) * 25
+            secondary = math.sin(y * 0.04 + i * 3.1) * 10
+            offset = primary + secondary
+            points.append((int(start_x + offset), y))
+            y += 35
         
         if len(points) > 1:
-            pygame.draw.lines(crack_surface, (*GRAY, alpha), False, points, 2)
+            # Rot-getönte Risse
+            crack_r = min(255, DARK_RED[0] + 30)
+            crack_g = DARK_RED[1]
+            crack_b = DARK_RED[2]
+            pygame.draw.lines(crack_surface, (crack_r, crack_g, crack_b, min(255, alpha)), False, points, 2)
+            # Zweite dünnere Linie daneben für Tiefe
+            offset_points = [(p[0] + 2, p[1]) for p in points]
+            pygame.draw.lines(crack_surface, (crack_r // 2, crack_g, crack_b, min(255, alpha // 2)), False, offset_points, 1)
     
     surface.blit(crack_surface, (0, 0))
 
+def draw_fog(surface, time, alpha):
+    """Zeichnet subtilen Nebel / Rauch Overlay"""
+    fog = pygame.Surface((surface.get_width(), surface.get_height()), pygame.SRCALPHA)
+    w, h = surface.get_width(), surface.get_height()
+    
+    for i in range(6):
+        cx = int((i * w / 5 + math.sin(time * 0.0005 + i * 2) * 100) % w)
+        cy = int(h * 0.6 + math.sin(time * 0.0003 + i) * h * 0.2)
+        radius = scale(120 + i * 30)
+        fog_a = min(255, int(alpha * 0.15))
+        
+        fog_circle = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+        pygame.draw.circle(fog_circle, (*FOG_COLOR, fog_a), (radius, radius), radius)
+        fog.blit(fog_circle, (cx - radius, cy - radius))
+    
+    surface.blit(fog, (0, 0))
+
 def draw_intro(current_time):
-    """Zeichnet das Intro"""
-    FADE_IN_DURATION = 2000
-    HOLD_DURATION = 3000
+    """Zeichnet das atmosphärische Intro"""
+    FADE_IN_DURATION = 2500
+    HOLD_DURATION = 3500
     FADE_OUT_DURATION = 2000
     
     if current_time < FADE_IN_DURATION:
@@ -758,23 +829,37 @@ def draw_intro(current_time):
     
     screen.fill(BLACK)
     
-    crack_alpha = min(alpha, 100)
+    # Atmosphärische Schichten
+    crack_alpha = min(alpha, 80)
     draw_cracks(screen, crack_alpha)
-    
+    draw_fog(screen, current_time, alpha)
     draw_particles(screen, current_time, alpha // 2)
     
-    # Skalierte Titel-Schrift
-    intro_font = get_scaled_font(120)
+    # Vignette für Tiefe
+    draw_vignette(screen, int(200 * (alpha / 255)))
     
+    # Titel mit Glow
+    intro_font = get_scaled_font(120)
     text_surface = pygame.Surface((screen.get_width(), screen.get_height()), pygame.SRCALPHA)
     draw_cracked_text(text_surface, "DEAD WORLD", 
-                     (screen.get_width() // 2, screen.get_height() // 2), 
+                     (screen.get_width() // 2, screen.get_height() // 2 - scale(20)), 
                      (BLOOD_RED[0], BLOOD_RED[1], BLOOD_RED[2]), 
                      current_time,
                      intro_font)
-    
     text_surface.set_alpha(alpha)
     screen.blit(text_surface, (0, 0))
+    
+    # "Press any key" hint mit Puls-Fade
+    if current_time > FADE_IN_DURATION:
+        hint_pulse = int(120 + 80 * math.sin(current_time * 0.003))
+        hint_font = get_scaled_font(22)
+        hint_surf = hint_font.render("LEERTASTE ZUM FORTFAHREN", True, (hint_pulse, hint_pulse // 3, hint_pulse // 4))
+        hint_rect = hint_surf.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2 + scale(80)))
+        hint_alpha_val = min(alpha, 200)
+        hint_layer = pygame.Surface((hint_surf.get_width(), hint_surf.get_height()), pygame.SRCALPHA)
+        hint_layer.blit(hint_surf, (0, 0))
+        hint_layer.set_alpha(hint_alpha_val)
+        screen.blit(hint_layer, hint_rect)
     
     return False
 
@@ -787,32 +872,29 @@ class MenuButton:
         self.rect = None
     
     def draw(self, surface, current_time):
-        color = HOVER_RED if self.hovered else BLOOD_RED
-        
-        # Skalierte Schrift für Buttons
         button_font = get_scaled_font(50)
         
+        if self.hovered:
+            color = HOVER_RED
+        else:
+            color = BLOOD_RED
+        
+        # Schatten
+        shadow = button_font.render(self.text, True, DEEP_RED)
+        shadow_rect = shadow.get_rect(center=(self.pos[0] + scale(2), self.pos[1] + scale(2)))
+        surface.blit(shadow, shadow_rect)
+        
+        # Haupt-Text
         text_surf = button_font.render(self.text, True, color)
         self.rect = text_surf.get_rect(center=self.pos)
+        surface.blit(text_surf, self.rect)
         
-        # Skalierter Schatten
-        shadow_offset = max(1, scale(3))
-        for i in range(shadow_offset, 0, -1):
-            shadow = button_font.render(self.text, True, DARK_RED)
-            shadow_rect = shadow.get_rect(center=(self.pos[0] + i, self.pos[1] + i))
-            surface.blit(shadow, shadow_rect)
-        
+        # Unterstreichungs-Animation bei Hover
         if self.hovered:
-            shake = math.sin(current_time * 0.01) * scale(2)
-            final_rect = self.rect.move(shake, 0)
-        else:
-            final_rect = self.rect
-        
-        surface.blit(text_surf, final_rect)
-        
-        if self.hovered:
-            border_rect = self.rect.inflate(scale(20), scale(10))
-            pygame.draw.rect(surface, BLOOD_RED, border_rect, 2)
+            line_width = int(self.rect.width * (0.5 + 0.5 * math.sin(current_time * 0.005)))
+            line_x = self.rect.centerx - line_width // 2
+            line_y = self.rect.bottom + scale(4)
+            pygame.draw.line(surface, HOVER_RED, (line_x, line_y), (line_x + line_width, line_y), max(1, scale(2)))
     
     def check_hover(self, mouse_pos):
         if self.rect:
@@ -1921,7 +2003,7 @@ def handle_fishing_qte(success):
     add_to_history("")
 
 def draw_game(current_time):
-    """Zeichnet das Text-Adventure Terminal"""
+    """Zeichnet das Text-Adventure Terminal mit CRT-Effekt"""
     global max_scroll
     
     screen.fill(TERMINAL_BG)
@@ -1942,7 +2024,7 @@ def draw_game(current_time):
     # Terminal-Header
     if qte_active:
         header_text = "=== QTE AKTIV === [Drücke die richtigen Tasten!]"
-        header_color = (255, 0, 0)  # Rot für QTE
+        header_color = (255, 40, 40)
     elif prolog_shown:
         if scroll_offset > 0:
             header_text = f"=== DEAD WORLD === [Gescrollt: {scroll_offset} Zeilen] [Ende: Zurück] [Mausrad/↑↓/PgUp/PgDn]"
@@ -1956,8 +2038,13 @@ def draw_game(current_time):
     header_surf = font_header.render(header_text, True, header_color)
     screen.blit(header_surf, (padding, header_y))
     
-    # Separator
-    pygame.draw.line(screen, TERMINAL_GREEN, (padding, separator_y), (screen.get_width() - padding, separator_y), 2)
+    # Gradient-Separator statt flacher Linie
+    w = screen.get_width()
+    for x in range(padding, w - padding):
+        t = abs(x - w // 2) / (w // 2)
+        a = int(255 * (1.0 - t * t))
+        pygame.draw.line(screen, (*TERMINAL_DIM, min(255, a)), (x, separator_y), (x, separator_y), 1)
+    pygame.draw.line(screen, TERMINAL_GREEN, (padding, separator_y), (w - padding, separator_y), 1)
     
     # QTE Timer anzeigen
     qte_offset = 0
@@ -2028,7 +2115,12 @@ def draw_game(current_time):
     # Input-Bereich (nur im Spiel-Modus, nicht im Prolog oder QTE)
     if prolog_shown and not qte_active:
         input_y = screen.get_height() - input_area_height
-        pygame.draw.line(screen, TERMINAL_GREEN, (padding, input_y - scale(10)), (screen.get_width() - padding, input_y - scale(10)), 2)
+        # Gradient input separator
+        w = screen.get_width()
+        for x in range(padding, w - padding):
+            t = abs(x - w // 2) / (w // 2)
+            a = int(200 * (1.0 - t * t))
+            pygame.draw.line(screen, (*TERMINAL_DIM, min(255, a)), (x, input_y - scale(10)), (x, input_y - scale(10)), 1)
         
         # Text vor und nach dem Cursor
         text_before_cursor = input_text[:cursor_position]
@@ -2042,6 +2134,10 @@ def draw_game(current_time):
         
         prompt = f"> {text_before_cursor}{cursor_char}{text_after_cursor}"
         
+        # Subtiler Glow auf der Prompt-Zeile
+        glow_surf = font_text.render(prompt, True, (*TERMINAL_DIM, 60))
+        screen.blit(glow_surf, (text_padding - 1, input_y - 1))
+        
         input_surf = font_text.render(prompt, True, TERMINAL_GREEN)
         screen.blit(input_surf, (text_padding, input_y))
         
@@ -2052,18 +2148,31 @@ def draw_game(current_time):
             screen.blit(hint_surf, (screen.get_width() - scale(200), input_y + scale(35)))
     
     elif not prolog_shown and not qte_active:
-        # Prolog-Hinweis
+        # Prolog-Hinweis mit Puls
         hint_y = screen.get_height() - scale(40)
-        hint_surf = font_text.render("[Drücke ENTER um fortzufahren]", True, TERMINAL_GREEN)
+        pulse = int(180 + 60 * math.sin(current_time * 0.003))
+        hint_surf = font_text.render("[Drücke ENTER um fortzufahren]", True, (pulse // 6, pulse // 3, pulse))
         hint_rect = hint_surf.get_rect(center=(screen.get_width() // 2, hint_y))
         screen.blit(hint_surf, hint_rect)
+    
+    # CRT-Scanline Overlay (gecacht für Performance)
+    global _scanline_cache, _scanline_cache_size
+    sw, sh = screen.get_width(), screen.get_height()
+    if _scanline_cache is None or _scanline_cache_size != (sw, sh):
+        _scanline_cache = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        for y in range(0, sh, 3):
+            pygame.draw.line(_scanline_cache, (0, 0, 0, 18), (0, y), (sw, y), 1)
+        _scanline_cache_size = (sw, sh)
+    screen.blit(_scanline_cache, (0, 0))
 
 
 def draw_options(current_time):
-    """Zeichnet das Options-Menü"""
+    """Zeichnet das atmosphärische Options-Menü"""
     screen.fill(BLACK)
-    draw_cracks(screen, 50)
-    draw_particles(screen, current_time, 100)
+    draw_cracks(screen, 35)
+    draw_fog(screen, current_time, 150)
+    draw_particles(screen, current_time, 60)
+    draw_vignette(screen, 140)
     
     # Skalierte Fonts
     font_title = get_scaled_font(80)
@@ -2155,31 +2264,44 @@ def draw_options(current_time):
         hint_y += scale(20)
 
 def draw_menu(current_time):
-    """Zeichnet das Hauptmenü"""
+    """Zeichnet das atmosphärische Hauptmenü"""
     global menu_selected_index
     
     screen.fill(BLACK)
     
-    draw_cracks(screen, 50)
-    draw_particles(screen, current_time, 100)
+    # Atmosphärische Hintergrund-Schichten
+    draw_cracks(screen, 40)
+    draw_fog(screen, current_time, 200)
+    draw_particles(screen, current_time, 80)
+    draw_vignette(screen, 160)
     
     # Skalierte Schriften
     font_menu_title = get_scaled_font(80)
-    font_menu_hint = get_scaled_font(25)
+    font_menu_hint = get_scaled_font(22)
     
+    # Titel mit Glow
     title_surface = pygame.Surface((screen.get_width(), screen.get_height()), pygame.SRCALPHA)
     draw_cracked_text(title_surface, "DEAD WORLD", 
-                     (screen.get_width() // 2, scale_y(150)), 
+                     (screen.get_width() // 2, scale_y(130)), 
                      (BLOOD_RED[0], BLOOD_RED[1], BLOOD_RED[2]), 
                      current_time,
                      font_menu_title)
     screen.blit(title_surface, (0, 0))
     
-    # Aktualisiere Button-Positionen basierend auf aktueller Auflösung
+    # Dekorative Trennlinie unter dem Titel
     center_x = screen.get_width() // 2
-    menu_buttons[0].pos = (center_x, scale_y(350))
-    menu_buttons[1].pos = (center_x, scale_y(450))
-    menu_buttons[2].pos = (center_x, scale_y(550))
+    line_half = scale(120)
+    line_y = scale_y(200)
+    for i in range(line_half):
+        t = i / line_half
+        a = int(80 * (1.0 - t))
+        pygame.draw.line(screen, (*DARK_RED, a), (center_x - i, line_y), (center_x - i, line_y), 1)
+        pygame.draw.line(screen, (*DARK_RED, a), (center_x + i, line_y), (center_x + i, line_y), 1)
+    
+    # Aktualisiere Button-Positionen basierend auf aktueller Auflösung
+    menu_buttons[0].pos = (center_x, scale_y(320))
+    menu_buttons[1].pos = (center_x, scale_y(420))
+    menu_buttons[2].pos = (center_x, scale_y(520))
     
     mouse_pos = pygame.mouse.get_pos()
     
@@ -2198,8 +2320,9 @@ def draw_menu(current_time):
     for button in menu_buttons:
         button.draw(screen, current_time)
     
-    # Hinweis für Tastatursteuerung
-    hint_surf = font_menu_hint.render("↑↓: Navigieren  |  ENTER: Auswählen", True, GRAY)
+    # Hinweis für Tastatursteuerung (subtiler)
+    hint_pulse = int(60 + 30 * math.sin(current_time * 0.002))
+    hint_surf = font_menu_hint.render("↑↓: Navigieren  |  ENTER: Auswählen", True, (hint_pulse, hint_pulse, hint_pulse))
     hint_rect = hint_surf.get_rect(center=(screen.get_width() // 2, screen.get_height() - scale(30)))
     screen.blit(hint_surf, hint_rect)
 
