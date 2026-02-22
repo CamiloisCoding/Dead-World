@@ -4,7 +4,6 @@ import math
 import random
 import time
 import datetime
-#einfache änderung 
 # Pygame initialisieren
 pygame.init()
 
@@ -21,7 +20,6 @@ RESOLUTION_PRESETS = [
     ('Sehr Hoch', 1920, 1080)
 ]
 current_resolution_index = 2  # Standard: Mittel (1280x720)
-#jannik
 # Farben
 BLACK = (0, 0, 0)
 BLOOD_RED = (139, 0, 0)
