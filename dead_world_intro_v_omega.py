@@ -218,7 +218,7 @@ weapons = {
 
 # Gegner-Datenbank
 enemies = {
-    'zombie': {'name': 'Toxoplasma-Zombie', 'health': 100, 'max_health': 100, 'damage': [10, 20], 'distance': 'nah'},
+    'zombie': {'name': 'Toxoplasma-Zombie', 'health': 100, 'max_health': 100, 'damage': [100, 100], 'distance': 'nah'},
     'infizierter': {'name': 'Infizierter Mensch', 'health': 80, 'max_health': 80, 'damage': [8, 15], 'distance': 'mittel'}
 }
 
@@ -1451,8 +1451,26 @@ def process_command(command):
                 add_to_history("")
                 add_to_history("=== DU BIST GESTORBEN ===")
                 add_to_history("")
-                add_to_history("Tippe 'neu' um neu zu starten")
                 player_stats['health'] = 0
+                # Reset Player Stats
+                player_stats['health'] = 100
+                player_stats['equipped_weapon'] = None
+                player_stats['weapon_type'] = None
+                player_stats['in_combat'] = False
+                player_stats['fist_level'] = 1
+                
+                # Reset Enemies
+                for enemy_key in enemies:
+                    enemies[enemy_key]['health'] = enemies[enemy_key]['max_health']
+                
+                # Reset Rooms
+                rooms['start']['first_visit'] = True
+                rooms['start']['enemy'] = 'zombie'
+                rooms['start']['items'] = ['feuerlöscher', 'zeitung']
+                if 'norden' in rooms['start']['exits']:
+                    del rooms['start']['exits']['norden']
+                
+                start_game()
             else:
                 add_to_history("Du stolperst zurück und weichst aus!")
                 add_to_history("Schnell, nimm eine Waffe!")
@@ -1686,8 +1704,26 @@ def enemy_counterattack(enemy):
     if player_stats['health'] <= 0:
         add_to_history("")
         add_to_history("=== DU BIST GESTORBEN ===")
-        add_to_history("Tippe 'neu' um neu zu starten")
-        del rooms['exits']['norden']['süden']['westen']['osten']
+        # Neues Spiel starten - setzt alles zurück
+        # Reset Player Stats
+        player_stats['health'] = 100
+        player_stats['equipped_weapon'] = None
+        player_stats['weapon_type'] = None
+        player_stats['in_combat'] = False
+        player_stats['fist_level'] = 1
+        
+        # Reset Enemies
+        for enemy_key in enemies:
+            enemies[enemy_key]['health'] = enemies[enemy_key]['max_health']
+        
+        # Reset Rooms
+        rooms['start']['first_visit'] = True
+        rooms['start']['enemy'] = 'zombie'
+        rooms['start']['items'] = ['feuerlöscher', 'zeitung']
+        if 'norden' in rooms['start']['exits']:
+            del rooms['start']['exits']['norden']
+        
+        start_game()
 
 def melee_attack(target):
     """Nahkampf mit Stichwaffen"""
@@ -2030,7 +2066,25 @@ def handle_melee_qte(success, data):
             if player_stats['health'] <= 0:
                 add_to_history("")
                 add_to_history("=== DU BIST GESTORBEN ===")
-                add_to_history("Tippe 'neu' um neu zu starten")
+                # Reset Player Stats
+                player_stats['health'] = 100
+                player_stats['equipped_weapon'] = None
+                player_stats['weapon_type'] = None
+                player_stats['in_combat'] = False
+                player_stats['fist_level'] = 1
+                
+                # Reset Enemies
+                for enemy_key in enemies:
+                    enemies[enemy_key]['health'] = enemies[enemy_key]['max_health']
+                
+                # Reset Rooms
+                rooms['start']['first_visit'] = True
+                rooms['start']['enemy'] = 'zombie'
+                rooms['start']['items'] = ['feuerlöscher', 'zeitung']
+                if 'norden' in rooms['start']['exits']:
+                    del rooms['start']['exits']['norden']
+                
+                start_game()
     else:
         add_to_history("Du verfehlst!")
         min_dmg, max_dmg = enemy['damage']
@@ -2042,7 +2096,25 @@ def handle_melee_qte(success, data):
         if player_stats['health'] <= 0:
             add_to_history("")
             add_to_history("=== DU BIST GESTORBEN ===")
-            add_to_history("Tippe 'neu' um neu zu starten")
+            # Reset Player Stats
+            player_stats['health'] = 100
+            player_stats['equipped_weapon'] = None
+            player_stats['weapon_type'] = None
+            player_stats['in_combat'] = False
+            player_stats['fist_level'] = 1
+            
+            # Reset Enemies
+            for enemy_key in enemies:
+                enemies[enemy_key]['health'] = enemies[enemy_key]['max_health']
+            
+            # Reset Rooms
+            rooms['start']['first_visit'] = True
+            rooms['start']['enemy'] = 'zombie'
+            rooms['start']['items'] = ['feuerlöscher', 'zeitung']
+            if 'norden' in rooms['start']['exits']:
+                del rooms['start']['exits']['norden']
+            
+            start_game()
     
     add_to_history("")
 
@@ -2068,7 +2140,25 @@ def handle_dodge_qte(success):
         if player_stats['health'] <= 0:
             add_to_history("")
             add_to_history("=== DU BIST GESTORBEN ===")
-            add_to_history("Tippe 'neu' um neu zu starten")
+            # Reset Player Stats
+            player_stats['health'] = 100
+            player_stats['equipped_weapon'] = None
+            player_stats['weapon_type'] = None
+            player_stats['in_combat'] = False
+            player_stats['fist_level'] = 1
+            
+            # Reset Enemies
+            for enemy_key in enemies:
+                enemies[enemy_key]['health'] = enemies[enemy_key]['max_health']
+            
+            # Reset Rooms
+            rooms['start']['first_visit'] = True
+            rooms['start']['enemy'] = 'zombie'
+            rooms['start']['items'] = ['feuerlöscher', 'zeitung']
+            if 'norden' in rooms['start']['exits']:
+                del rooms['start']['exits']['norden']
+            
+            start_game()
     
     add_to_history("")
 
