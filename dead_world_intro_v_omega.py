@@ -4,8 +4,15 @@ import math
 import random
 import time
 import datetime
+import os
 # Pygame initialisieren
 pygame.init()
+pygame.mixer.init()
+
+# Musik-System
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MENU_MUSIC_PATH = os.path.join(BASE_DIR, "Game_music", "Ambient", "julius_galla__atmosphere-horror-2-loop.wav")
+menu_music_playing = False
 
 # Konstanten
 WIDTH, HEIGHT = 1200, 700
@@ -1036,13 +1043,17 @@ class MenuButton:
             self.action()
 
 def start_game():
-    global current_state, game_history, current_room, player_inventory, prolog_shown, prolog_lines, prolog_line_index
+    global current_state, game_history, current_room, player_inventory, prolog_shown, prolog_lines, prolog_line_index, menu_music_playing
     current_state = GAME
     game_history = []
     current_room = 'start'
     player_inventory = ['fäuste']
     prolog_shown = False
     prolog_line_index = 0
+    
+    # Menü-Musik ausblenden
+    pygame.mixer.music.fadeout(800)
+    menu_music_playing = False
     
     # Prolog in Zeilen aufteilen
     prolog_lines = [line for line in PROLOG_TEXT.split('\n') if line.strip() or line == '']
@@ -1057,6 +1068,19 @@ def show_options():
 def back_to_menu():
     global current_state
     current_state = MENU
+    _start_menu_music()
+
+def _start_menu_music():
+    """Startet die Menü-Musik falls nicht bereits aktiv"""
+    global menu_music_playing
+    if not menu_music_playing and os.path.exists(MENU_MUSIC_PATH):
+        try:
+            pygame.mixer.music.load(MENU_MUSIC_PATH)
+            pygame.mixer.music.set_volume(game_settings['music_volume'])
+            pygame.mixer.music.play(-1)  # Loop endlos
+            menu_music_playing = True
+        except Exception:
+            pass  # Kein Crash wenn Musik nicht geladen werden kann
 
 def change_resolution(direction):
     """Ändert die Auflösung (direction: -1 für niedriger, +1 für höher)"""
@@ -2620,6 +2644,8 @@ def main():
     running = True
     start_time = pygame.time.get_ticks()
     
+    # Musik wird erst beim Wechsel ins Menü gestartet (nicht im Intro)
+    
     while running:
         current_time = pygame.time.get_ticks() - start_time
         current_ms = pygame.time.get_ticks()
@@ -2683,14 +2709,18 @@ def main():
                         running = False
                     elif current_state == OPTIONS:
                         current_state = MENU
+                        _start_menu_music()
                     elif current_state == GAME:
                         current_state = MENU
+                        _start_menu_music()
                     else:
                         current_state = MENU
+                        _start_menu_music()
                 
                 # Space im Intro
                 elif event.key == pygame.K_SPACE and current_state == INTRO:
                     current_state = MENU
+                    _start_menu_music()
                 
                 # Tastaturnavigation im Hauptmenü
                 elif current_state == MENU:
@@ -2839,6 +2869,7 @@ def main():
             if intro_done:
                 current_state = MENU
                 start_time = pygame.time.get_ticks()
+                _start_menu_music()
         
         elif current_state == MENU:
             draw_menu(current_time)
