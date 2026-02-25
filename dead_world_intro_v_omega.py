@@ -160,6 +160,8 @@ left_held = False
 last_left_time = 0
 right_held = False
 last_right_time = 0
+enter_held = False
+last_enter_time = 0
 key_initial_delay = 250  # ms
 key_repeat_delay = 35    # ms
 
@@ -167,9 +169,35 @@ key_repeat_delay = 35    # ms
 scroll_offset = 0
 max_scroll = 0
 
+# Typewriter-Effekt System
+typewriter_queue = []          # Warteschlange für Zeilen die noch getippt werden
+typewriter_current_line = ""   # Die aktuelle Zeile die getippt wird
+typewriter_reveal_index = 0    # Wie viele Zeichen sichtbar sind
+typewriter_last_time = 0       # Letzter Zeitpunkt an dem ein Zeichen hinzugefügt wurde
+TYPEWRITER_SPEED = 1           # Millisekunden pro Zeichen (1 = extrem schnell)
+typewriter_active = False      # Ob gerade getippt wird
+
 # Cached CRT-Scanline Surface (nur einmal erstellen)
 _scanline_cache = None
 _scanline_cache_size = (0, 0)
+
+# Cached static surfaces (vignette, cracks) - nur bei Resize neu erstellen
+_vignette_cache = None
+_vignette_cache_key = (0, 0, 0)  # (w, h, intensity)
+_cracks_cache = None
+_cracks_cache_key = (0, 0, 0)  # (w, h, alpha)
+
+# Pre-allokierte Partikel-Surfaces (vermeidet 50 Allokationen pro Frame)
+_particle_surfaces = {}  # Cache: (size, color, alpha) -> Surface
+
+# Cached fog circle surface
+_fog_circle_cache = {}  # Cache: (radius, alpha) -> Surface
+_fog_surface = None     # Reusable fog overlay surface
+_fog_surface_size = (0, 0)
+
+# Cached gradient separator surfaces
+_gradient_sep_cache = None
+_gradient_sep_cache_key = (0, 0, 0)  # (w, padding, color_key)
 
 # Kampfsystem
 
@@ -759,21 +787,44 @@ def toggle_fullscreen():
     else:
         screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
 
+def _draw_gradient_line(surface, center_x, y, half_width, color, max_alpha=80):
+    """Zeichnet eine gecachte Gradient-Linie (vermeidet per-pixel draw calls)"""
+    global _gradient_sep_cache, _gradient_sep_cache_key
+    key = (half_width, color, max_alpha)
+    
+    if _gradient_sep_cache is None or _gradient_sep_cache_key != key:
+        w = half_width * 2
+        _gradient_sep_cache = pygame.Surface((w, 1), pygame.SRCALPHA)
+        for i in range(half_width):
+            t = i / half_width
+            a = int(max_alpha * (1.0 - t))
+            _gradient_sep_cache.set_at((half_width - i, 0), (*color, a))
+            _gradient_sep_cache.set_at((half_width + i, 0), (*color, a))
+        _gradient_sep_cache_key = key
+    
+    surface.blit(_gradient_sep_cache, (center_x - half_width, y))
+
 def draw_vignette(surface, intensity=180):
-    """Zeichnet einen dunklen Vignette-Rahmen um den Bildschirm"""
+    """Zeichnet einen dunklen Vignette-Rahmen um den Bildschirm (gecacht)"""
+    global _vignette_cache, _vignette_cache_key
     w, h = surface.get_width(), surface.get_height()
-    vig = pygame.Surface((w, h), pygame.SRCALPHA)
-    # Draw concentric edge bands on one surface for performance
-    steps = 20
-    for i in range(steps):
-        t = (i / steps)
-        a = int(intensity * t * t)
-        border = i * max(w, h) // (steps * 5)
-        pygame.draw.rect(vig, (0, 0, 0, a), (0, 0, w, border))  # top
-        pygame.draw.rect(vig, (0, 0, 0, a), (0, h - border, w, border))  # bottom
-        pygame.draw.rect(vig, (0, 0, 0, a), (0, 0, border, h))  # left
-        pygame.draw.rect(vig, (0, 0, 0, a), (w - border, 0, border, h))  # right
-    surface.blit(vig, (0, 0))
+    key = (w, h, intensity)
+    
+    if _vignette_cache is None or _vignette_cache_key != key:
+        vig = pygame.Surface((w, h), pygame.SRCALPHA)
+        steps = 20
+        for i in range(steps):
+            t = (i / steps)
+            a = int(intensity * t * t)
+            border = i * max(w, h) // (steps * 5)
+            pygame.draw.rect(vig, (0, 0, 0, a), (0, 0, w, border))
+            pygame.draw.rect(vig, (0, 0, 0, a), (0, h - border, w, border))
+            pygame.draw.rect(vig, (0, 0, 0, a), (0, 0, border, h))
+            pygame.draw.rect(vig, (0, 0, 0, a), (w - border, 0, border, h))
+        _vignette_cache = vig
+        _vignette_cache_key = key
+    
+    surface.blit(_vignette_cache, (0, 0))
 
 def draw_cracked_text(surface, text, pos, color, time, font=None):
     """Zeichnet Text mit weichem Hintergrund-Glow und Schatten"""
@@ -799,7 +850,8 @@ def draw_cracked_text(surface, text, pos, color, time, font=None):
     surface.blit(text_surface, final_rect)
 
 def draw_particles(surface, time, alpha):
-    """Zeichnet Asche-Partikel und glühende Ember-Funken"""
+    """Zeichnet Asche-Partikel und glühende Ember-Funken (optimiert)"""
+    global _particle_surfaces
     w, h = surface.get_width(), surface.get_height()
     
     # Asche-Partikel (subtil, grau, langsam)
@@ -811,58 +863,75 @@ def draw_particles(surface, time, alpha):
         size = (i % 3) + 1
         a = min(255, int(alpha * 0.6))
         
-        ps = pygame.Surface((size, size), pygame.SRCALPHA)
-        ps.fill((*LIGHT_GRAY, a))
-        surface.blit(ps, (x, y))
+        cache_key = (size, LIGHT_GRAY, a)
+        if cache_key not in _particle_surfaces:
+            ps = pygame.Surface((size, size), pygame.SRCALPHA)
+            ps.fill((*LIGHT_GRAY, a))
+            _particle_surfaces[cache_key] = ps
+        surface.blit(_particle_surfaces[cache_key], (x, y))
     
     # Ember-Funken (orange, klein, steigen auf)
     for i in range(15):
         seed = i * 211 + 500
         drift = math.sin(time * 0.002 + seed * 0.7) * 20
         x = (seed + int(drift)) % w
-        y = h - ((i * 97 + int(time * 1.2)) % h)  # steigen auf
-        life = (time * 0.003 + i) % 1.0  # 0-1 Lebenszyklus
+        y = h - ((i * 97 + int(time * 1.2)) % h)
+        life = (time * 0.003 + i) % 1.0
         size = max(1, int(3 * (1.0 - life)))
         a = min(255, int(alpha * (1.0 - life)))
         
         color = EMBER_ORANGE if i % 3 != 0 else EMBER_DIM
-        ps = pygame.Surface((size, size), pygame.SRCALPHA)
-        ps.fill((*color, a))
-        surface.blit(ps, (int(x), int(y)))
+        cache_key = (size, color, a)
+        if cache_key not in _particle_surfaces:
+            ps = pygame.Surface((size, size), pygame.SRCALPHA)
+            ps.fill((*color, a))
+            _particle_surfaces[cache_key] = ps
+        surface.blit(_particle_surfaces[cache_key], (int(x), int(y)))
 
 def draw_cracks(surface, alpha):
-    """Zeichnet rot-getönte Risse mit organischeren Mustern"""
-    crack_surface = pygame.Surface((surface.get_width(), surface.get_height()), pygame.SRCALPHA)
+    """Zeichnet rot-getönte Risse mit organischeren Mustern (gecacht)"""
+    global _cracks_cache, _cracks_cache_key
     w, h = surface.get_width(), surface.get_height()
+    key = (w, h, alpha)
     
-    for i in range(10):
-        start_x = int(i * w / 10 + 30)
-        points = [(start_x, 0)]
+    if _cracks_cache is None or _cracks_cache_key != key:
+        crack_surface = pygame.Surface((w, h), pygame.SRCALPHA)
         
-        y = 0
-        while y < h:
-            primary = math.sin(y * 0.015 + i * 1.7) * 25
-            secondary = math.sin(y * 0.04 + i * 3.1) * 10
-            offset = primary + secondary
-            points.append((int(start_x + offset), y))
-            y += 35
+        for i in range(10):
+            start_x = int(i * w / 10 + 30)
+            points = [(start_x, 0)]
+            
+            y = 0
+            while y < h:
+                primary = math.sin(y * 0.015 + i * 1.7) * 25
+                secondary = math.sin(y * 0.04 + i * 3.1) * 10
+                offset = primary + secondary
+                points.append((int(start_x + offset), y))
+                y += 35
+            
+            if len(points) > 1:
+                crack_r = min(255, DARK_RED[0] + 30)
+                crack_g = DARK_RED[1]
+                crack_b = DARK_RED[2]
+                pygame.draw.lines(crack_surface, (crack_r, crack_g, crack_b, min(255, alpha)), False, points, 2)
+                offset_points = [(p[0] + 2, p[1]) for p in points]
+                pygame.draw.lines(crack_surface, (crack_r // 2, crack_g, crack_b, min(255, alpha // 2)), False, offset_points, 1)
         
-        if len(points) > 1:
-            # Rot-getönte Risse
-            crack_r = min(255, DARK_RED[0] + 30)
-            crack_g = DARK_RED[1]
-            crack_b = DARK_RED[2]
-            pygame.draw.lines(crack_surface, (crack_r, crack_g, crack_b, min(255, alpha)), False, points, 2)
-            # Zweite dünnere Linie daneben für Tiefe
-            offset_points = [(p[0] + 2, p[1]) for p in points]
-            pygame.draw.lines(crack_surface, (crack_r // 2, crack_g, crack_b, min(255, alpha // 2)), False, offset_points, 1)
+        _cracks_cache = crack_surface
+        _cracks_cache_key = key
     
-    surface.blit(crack_surface, (0, 0))
+    surface.blit(_cracks_cache, (0, 0))
 
 def draw_fog(surface, time, alpha):
-    """Zeichnet subtilen Nebel / Rauch Overlay"""
-    fog = pygame.Surface((surface.get_width(), surface.get_height()), pygame.SRCALPHA)
+    """Zeichnet subtilen Nebel / Rauch Overlay (optimiert)"""
+    global _fog_circle_cache, _fog_surface, _fog_surface_size
     w, h = surface.get_width(), surface.get_height()
+    
+    # Reuse fog overlay surface statt jedes Frame neu zu erstellen
+    if _fog_surface is None or _fog_surface_size != (w, h):
+        _fog_surface = pygame.Surface((w, h), pygame.SRCALPHA)
+        _fog_surface_size = (w, h)
+    _fog_surface.fill((0, 0, 0, 0))  # Clear statt neu erstellen
     
     for i in range(6):
         cx = int((i * w / 5 + math.sin(time * 0.0005 + i * 2) * 100) % w)
@@ -870,11 +939,14 @@ def draw_fog(surface, time, alpha):
         radius = scale(120 + i * 30)
         fog_a = min(255, int(alpha * 0.15))
         
-        fog_circle = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-        pygame.draw.circle(fog_circle, (*FOG_COLOR, fog_a), (radius, radius), radius)
-        fog.blit(fog_circle, (cx - radius, cy - radius))
+        cache_key = (radius, fog_a)
+        if cache_key not in _fog_circle_cache:
+            fog_circle = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+            pygame.draw.circle(fog_circle, (*FOG_COLOR, fog_a), (radius, radius), radius)
+            _fog_circle_cache[cache_key] = fog_circle
+        _fog_surface.blit(_fog_circle_cache[cache_key], (cx - radius, cy - radius))
     
-    surface.blit(fog, (0, 0))
+    surface.blit(_fog_surface, (0, 0))
 
 def draw_intro(current_time):
     """Zeichnet das atmosphärische Intro"""
@@ -903,16 +975,13 @@ def draw_intro(current_time):
     # Vignette für Tiefe
     draw_vignette(screen, int(200 * (alpha / 255)))
     
-    # Titel mit Glow
+    # Titel mit Glow - direkt auf Screen zeichnen statt extra Surface
     intro_font = get_scaled_font(120)
-    text_surface = pygame.Surface((screen.get_width(), screen.get_height()), pygame.SRCALPHA)
-    draw_cracked_text(text_surface, "DEAD WORLD", 
+    draw_cracked_text(screen, "DEAD WORLD", 
                      (screen.get_width() // 2, screen.get_height() // 2 - scale(20)), 
                      (BLOOD_RED[0], BLOOD_RED[1], BLOOD_RED[2]), 
                      current_time,
                      intro_font)
-    text_surface.set_alpha(alpha)
-    screen.blit(text_surface, (0, 0))
     
     # "Press any key" hint mit Puls-Fade
     if current_time > FADE_IN_DURATION:
@@ -920,11 +989,7 @@ def draw_intro(current_time):
         hint_font = get_scaled_font(22)
         hint_surf = hint_font.render("LEERTASTE ZUM FORTFAHREN", True, (hint_pulse, hint_pulse // 3, hint_pulse // 4))
         hint_rect = hint_surf.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2 + scale(80)))
-        hint_alpha_val = min(alpha, 200)
-        hint_layer = pygame.Surface((hint_surf.get_width(), hint_surf.get_height()), pygame.SRCALPHA)
-        hint_layer.blit(hint_surf, (0, 0))
-        hint_layer.set_alpha(hint_alpha_val)
-        screen.blit(hint_layer, hint_rect)
+        screen.blit(hint_surf, hint_rect)
     
     return False
 
@@ -1069,24 +1134,69 @@ def wrap_text(text, max_chars):
     return lines if lines else [""]
 
 def add_to_history(text):
-    """Fügt Text zur Spielhistorie hinzu mit automatischem Word-Wrapping"""
-    global scroll_offset
+    """Fügt Text zur Spielhistorie hinzu mit automatischem Word-Wrapping und Typewriter-Effekt"""
+    global scroll_offset, typewriter_active, typewriter_queue
     
     max_chars = get_max_chars()
     
-    #
-    
-    # Leere Zeilen direkt hinzufügen
+    # Leere Zeilen direkt in die Queue
     if not text or text.strip() == "":
-        game_history.append(text)
+        typewriter_queue.append(text if text else "")
     else:
         # Text mit Word-Wrapping aufteilen
         wrapped_lines = wrap_text(text, max_chars)
         for line in wrapped_lines:
-            game_history.append(line)
+            typewriter_queue.append(line)
+    
+    # Typewriter starten falls nicht aktiv
+    if not typewriter_active and typewriter_queue:
+        _start_next_typewriter_line()
     
     # Automatisch nach unten scrollen bei neuen Nachrichten
     scroll_offset = 0
+
+def _start_next_typewriter_line():
+    """Startet die nächste Zeile im Typewriter-Effekt"""
+    global typewriter_active, typewriter_current_line, typewriter_reveal_index, typewriter_last_time
+    
+    if typewriter_queue:
+        typewriter_current_line = typewriter_queue.pop(0)
+        typewriter_reveal_index = 0
+        typewriter_last_time = pygame.time.get_ticks()
+        typewriter_active = True
+    else:
+        typewriter_active = False
+        typewriter_current_line = ""
+        typewriter_reveal_index = 0
+
+def update_typewriter():
+    """Aktualisiert den Typewriter-Effekt - aufgerufen jeden Frame"""
+    global typewriter_active, typewriter_reveal_index, typewriter_last_time, typewriter_current_line
+    
+    if not typewriter_active:
+        return
+    
+    current_ms = pygame.time.get_ticks()
+    
+    # Leere Zeilen sofort fertigstellen
+    if not typewriter_current_line or not typewriter_current_line.strip():
+        game_history.append(typewriter_current_line)
+        _start_next_typewriter_line()
+        return
+    
+    # Berechne wie viele Zeichen seit dem letzten Update hinzugefügt werden sollen
+    elapsed = current_ms - typewriter_last_time
+    chars_to_add = elapsed // TYPEWRITER_SPEED
+    
+    if chars_to_add > 0:
+        typewriter_reveal_index += chars_to_add
+        typewriter_last_time = current_ms
+        
+        # Zeile fertig getippt?
+        if typewriter_reveal_index >= len(typewriter_current_line):
+            typewriter_reveal_index = len(typewriter_current_line)
+            game_history.append(typewriter_current_line)
+            _start_next_typewriter_line()
 
 def move_direction(direction):
     """Bewege Spieler in eine Richtung"""
@@ -2208,12 +2318,8 @@ def draw_game(current_time):
     header_surf = font_header.render(header_text, True, header_color)
     screen.blit(header_surf, (padding, header_y))
     
-    # Gradient-Separator statt flacher Linie
+    # Gradient-Separator (simple Linie statt per-pixel loop)
     w = screen.get_width()
-    for x in range(padding, w - padding):
-        t = abs(x - w // 2) / (w // 2)
-        a = int(255 * (1.0 - t * t))
-        pygame.draw.line(screen, (*TERMINAL_DIM, min(255, a)), (x, separator_y), (x, separator_y), 1)
     pygame.draw.line(screen, TERMINAL_GREEN, (padding, separator_y), (w - padding, separator_y), 1)
     
     # QTE Timer anzeigen
@@ -2260,6 +2366,14 @@ def draw_game(current_time):
             # y_offset wird IMMER erhöht - auch für Leerzeilen (vertikaler Abstand)
             y_offset += line_height
     
+    # Typewriter: Zeige die aktuell getippte Zeile (teilweise sichtbar)
+    if typewriter_active and typewriter_current_line and typewriter_current_line.strip():
+        visible_text = typewriter_current_line[:typewriter_reveal_index]
+        if visible_text.strip():
+            tw_surf = font_text.render(visible_text, True, TERMINAL_GREEN)
+            screen.blit(tw_surf, (text_padding, y_offset))
+        y_offset += line_height
+    
     # Scroll-Indikator (wenn gescrollt)
     if prolog_shown and not qte_active and scroll_offset > 0:
         indicator_x = screen.get_width() - scale(30)
@@ -2285,12 +2399,9 @@ def draw_game(current_time):
     # Input-Bereich (nur im Spiel-Modus, nicht im Prolog oder QTE)
     if prolog_shown and not qte_active:
         input_y = screen.get_height() - input_area_height
-        # Gradient input separator
+        # Input separator (simple Linie statt per-pixel loop)
         w = screen.get_width()
-        for x in range(padding, w - padding):
-            t = abs(x - w // 2) / (w // 2)
-            a = int(200 * (1.0 - t * t))
-            pygame.draw.line(screen, (*TERMINAL_DIM, min(255, a)), (x, input_y - scale(10)), (x, input_y - scale(10)), 1)
+        pygame.draw.line(screen, TERMINAL_DIM, (padding, input_y - scale(10)), (w - padding, input_y - scale(10)), 1)
         
         # Text vor und nach dem Cursor
         text_before_cursor = input_text[:cursor_position]
@@ -2449,24 +2560,18 @@ def draw_menu(current_time):
     font_menu_title = get_scaled_font(80)
     font_menu_hint = get_scaled_font(22)
     
-    # Titel mit Glow
-    title_surface = pygame.Surface((screen.get_width(), screen.get_height()), pygame.SRCALPHA)
-    draw_cracked_text(title_surface, "DEAD WORLD", 
+    # Titel mit Glow - direkt auf Screen zeichnen statt extra full-screen Surface
+    draw_cracked_text(screen, "DEAD WORLD", 
                      (screen.get_width() // 2, scale_y(130)), 
                      (BLOOD_RED[0], BLOOD_RED[1], BLOOD_RED[2]), 
                      current_time,
                      font_menu_title)
-    screen.blit(title_surface, (0, 0))
     
-    # Dekorative Trennlinie unter dem Titel
+    # Dekorative Trennlinie unter dem Titel (gecacht)
     center_x = screen.get_width() // 2
     line_half = scale(120)
     line_y = scale_y(200)
-    for i in range(line_half):
-        t = i / line_half
-        a = int(80 * (1.0 - t))
-        pygame.draw.line(screen, (*DARK_RED, a), (center_x - i, line_y), (center_x - i, line_y), 1)
-        pygame.draw.line(screen, (*DARK_RED, a), (center_x + i, line_y), (center_x + i, line_y), 1)
+    _draw_gradient_line(screen, center_x, line_y, line_half, DARK_RED)
     
     # Aktualisiere Button-Positionen basierend auf aktueller Auflösung
     menu_buttons[0].pos = (center_x, scale_y(320))
@@ -2510,6 +2615,7 @@ options_buttons = [
 def main():
     global current_state, input_text, backspace_held, last_backspace_time, history_index, scroll_offset, max_scroll, menu_selected_index, cursor_position
     global delete_held, last_delete_time, left_held, last_left_time, right_held, last_right_time
+    global enter_held, last_enter_time
     
     running = True
     start_time = pygame.time.get_ticks()
@@ -2548,6 +2654,13 @@ def main():
                     if cursor_position < len(input_text):
                         cursor_position += 1
                     last_right_time = current_ms
+        
+        # Enter-Repeat (funktioniert sowohl im Prolog als auch im Spiel)
+        if enter_held and current_state == GAME:
+            if current_ms - last_enter_time > key_repeat_delay:
+                if not prolog_shown:
+                    process_command("")
+                last_enter_time = current_ms
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -2608,6 +2721,8 @@ def main():
                             input_text = ""
                             cursor_position = 0
                             history_index = -1
+                        enter_held = True
+                        last_enter_time = pygame.time.get_ticks() + key_initial_delay
                     
                     elif event.key == pygame.K_BACKSPACE and not qte_active:
                         if cursor_position > 0:
@@ -2706,6 +2821,8 @@ def main():
                     left_held = False
                 elif event.key == pygame.K_RIGHT:
                     right_held = False
+                elif event.key == pygame.K_RETURN:
+                    enter_held = False
             
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
@@ -2730,6 +2847,7 @@ def main():
             draw_options(current_time)
         
         elif current_state == GAME:
+            update_typewriter()
             draw_game(current_time)
         
         pygame.display.flip()
