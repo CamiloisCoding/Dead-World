@@ -371,7 +371,7 @@ rooms = {
     },
     'lagerraum': {#Spawn haus 
         'name': 'Lager Raum',
-        'description': 'Im lagerraum dirnnen stehen 3 Schwerlastregale mit weiterem dosen essen und wasser, ein bett steht in der rechten ecke. Im norden gehts in den keller',
+        'description': 'Im lagerraum dirnnen stehen 3 Schwerlastregale mit weiterem dosen essen und wasser, ein bett steht in der rechten ecke. Im norden gehts in den ',
         'exits': {'norden': 'keller'},
         'items': [],
         'in_development': False
@@ -382,7 +382,9 @@ rooms = {
         'exits': {'norden': 'vordertuer', 'westen': 'westlich_haus_gabelung', 'süden': 'haus1', 'osten': 'oestlich_weggabelung'},
         'items': [],
         'in_development': False,
-        'spawn_chance': True
+        'spawn_chance': True,
+        'zombie_spawn': False
+    
     },
     'westlich_haus_gabelung': {#Stadt
         'name': 'Westliche weggabelung',
@@ -396,7 +398,9 @@ rooms = {
         'description': 'Du stehst in mitten der straße, westlich von dir steht das Krankenhauses.',
         'exits': {'norden': 'westlich_haus_gabelung', 'westen': 'krankenhaus_eingang'},
         'items': [],
-        'in_development': False
+        'in_development': False,
+        'spawn_chance': True,
+        'zombie_spawn': False
     },
     'krankenhaus_eingang': {#Krankenhaus
         'name': 'Krankenhaus Eingang',
@@ -410,21 +414,27 @@ rooms = {
         'description': 'Du stehst auf der Straße, weitere kaputte Autos und blut sind auf der Straße sehbar. Im Osten liegt ein Haus, ',
         'exits': {'norden': 'nord_westliche_weggabelung', 'osten': 'haus2', 'süden': 'oestlich_weggabelung'},
         'items': [],
-        'in_development': False
+        'in_development': False,
+        'spawn_chance': True,
+        'zombie_spawn': False
     },
     'nord_westliche_weggabelung': {#Stadt Norden
         'name': 'Nord Westliche weggabelung',
         'description': 'Du befindest dich an einer weggabelung, im westen liegt die Bibliothek Straße, richtung osten befinden sich weitere häuser',
         'exits': {'osten': 'östliche_straße', 'westen': 'bibliothek_straße'},
         'items': [],
-        'in_development': False
+        'in_development': False,
+        'spawn_chance': True,
+        'zombie_spawn': False
     },
     'bibliothek_straße': {#Bibliothek
         'name': 'Bibliothek Straße',
         'description': 'Du stehst auf der Straße, weitere kaputte Autos und blut sind auf der Straße sehbar. Im Osten liegt ein Haus, ',
         'exits': {'norden': 'bibliothek_eingang', 'osten': 'nord_westliche_weggabelung'},
         'items': [],
-        'in_development': False
+        'in_development': False,
+        'spawn_chance': True,
+        'zombie_spawn': False
     },
     'bibliothek_eingang': {#Bibliothek
         'name': 'Bibliothek Eingang',
@@ -644,8 +654,7 @@ rooms = {
     'oestlich_weggabelung': {#Stadt
         'name': 'Östliche weggabelung',
         'description': 'Du stehst auf der Straße, weitere kaputte Autos und blut sind auf der Straße sehbar. Im Osten liegt ein Park, ',
-        'exits': {'norden': 'nord_östliche_weggabelung',
-        'osten': 'park', 'süden': 'skyscraper_weggabelung'},
+        'exits': {'norden': 'nord_östliche_weggabelung', 'westen': 'suedlich_haus', 'osten': 'park', 'süden': 'skyscraper_weggabelung'},
         'items': [],
         'in_development': True
     },
@@ -1028,8 +1037,15 @@ def move_direction(direction):
     global current_room
     
     room = rooms[current_room]
-    if room.get('spawn_chance') and spawn_chance():
-        print("Ein Zombie taucht auf!")
+    
+    # 50% Zombie-Spawn in Räumen mit spawn_chance
+    if direction in room['exits']:
+        next_room_key = room['exits'][direction]
+        next_room = rooms.get(next_room_key)
+        if next_room and next_room.get('spawn_chance') and spawn_chance():
+            enemies['zombie']['health'] = enemies['zombie']['max_health']
+            next_room['enemy'] = 'zombie'
+            next_room['zombie_spawn'] = True
     
     if direction in room['exits']:
         next_room = room['exits'][direction]
@@ -1042,9 +1058,9 @@ def move_direction(direction):
             return
         
         #
-        if current_room == 'haus1' and next_room == 'haus1_vordertür' and not t:
-            add_to_history("Ein großes Bücherregal versperrt den Weg nach NORDEN.")
-            add_to_history("Vielleicht kannst du es zur Seite schieben?")
+        if current_room == 'haus1' and next_room == 'haus1_vordertür' and not haus1_tür_auf:
+            add_to_history("Die Tür ist fest verschlossen.")
+            add_to_history("Vielleicht kannst du sie aufbrechen?")
             add_to_history("")
             return
                 
@@ -1199,7 +1215,7 @@ def process_command(command):
         return
     
     cmd = command.lower().strip()
-    
+
     if cmd in ['hilfe', 'help', '?']:
         add_to_history("DEAD WORLD - BEFEHLE")
         add_to_history("")
@@ -1265,6 +1281,12 @@ def process_command(command):
     
     elif cmd in ['nw', 'nordwesten', 'nord-westen']:
         move_direction('nordwesten')
+
+    elif cmd in ['h', 'hoch', 'up']:
+        move_direction('hoch')
+    
+    elif cmd in ['r', 'runter', 'down']:
+        move_direction('runter')
     
     elif cmd.startswith('nimm '):
         item = cmd[5:].strip()
