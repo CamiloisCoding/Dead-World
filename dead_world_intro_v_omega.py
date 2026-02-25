@@ -1687,7 +1687,7 @@ def enemy_counterattack(enemy):
         add_to_history("")
         add_to_history("=== DU BIST GESTORBEN ===")
         add_to_history("Tippe 'neu' um neu zu starten")
-        del rooms['exits']
+        del rooms['exits']['norden']['süden']['westen']['osten']
 
 def melee_attack(target):
     """Nahkampf mit Stichwaffen"""
