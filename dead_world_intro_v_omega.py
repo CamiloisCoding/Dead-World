@@ -512,14 +512,18 @@ rooms = {
         'description': 'Im mitten von der weggabelung siehst du den Parkplatz von Walmart und ein weiteres Haus im Norden',
         'exits': {'norden': 'norden_straße', 'westen': 'nord-westliche weggabelung', 'süden': 'östliche_straße', 'osten': 'parkplatz'},
         'items': [],
-        'in_development': False
+        'in_development': False,
+        'spawn_chance': True,
+        'zombie_spawn': False
     },
     'parkplatz': {#Walmart
         'name': 'Parkplatz',
         'description': 'Du stehst auf dem Parkplatz von Walmart, es stehen viele kaputte autos, manche davon auch umgekippt. Richtung westen  und im süden gehst zur weggabelung zurück',
         'exits': {'westen': 'norden_straße', 'süden': 'nord_östliche_weggabelung', 'norden': 'walmart_eingang'},
         'items': [],
-        'in_development': False
+        'in_development': False,
+        'spawn_chance': True,
+        'zombie_spawn': False
     },
     'walmart_eingang': {#Walmart
         'name': 'Walmart Eingang',
@@ -642,12 +646,56 @@ rooms = {
         'description': 'Im westen von dir ist ein Haus, die Türen stehen offen, im osten liegt der Parkplatz von Walmart. Im Süden gehsts zurück zur weggabelung.',
         'exits': {'westen': 'haus_3_eingang', 'süden': 'nord_östliche_weggabelung', 'osten': 'parkplatz'},
         'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'haus_3_eingang': {#Haus3
+        'name': 'eingang',
+        'description': '.',
+        'exits': {'westen': 'haus_3_v'},
+        'items': [],
         'in_development': True
     },
-    'haus_3': {#Haus3
-        'name': 'haus_3',
+    'haus_3_v': {#Haus3
+        'name': 'Haus 3 vordertür',
         'description': '.',
-        'exits': {'westen': '', 'süden': '', 'osten': ''},
+        'exits': {'osten': 'haus_3_eingang', 'norden': 'wohnzimmer_h3', 'süden': 'bedroom_2', 'westen': 'haus_3_wohnbereich'},
+        'items': [],
+        'in_development': True
+    },
+    'haus_3_wohnbereich': {#Haus3
+        'name': 'Wohnbereich',
+        'description': '.',
+        'exits': {'osten': 'haus_3_v', 'norden': 'küche_h3', 'süden': 'bathroom_3', 'westen': 'bedroom_3'},
+        'items': [],
+        'in_development': True
+    },
+    'wohnzimmer_h3': {#Haus3
+        'name': 'Wohnzimmer',
+        'description': '.',
+        'exits': {'süden': 'haus_3_wohnbereich'},
+        'items': [],
+        'in_development': True
+    },
+    'küche_h3': {#Haus3
+        'name': 'Küche',
+        'description': '.',
+        'exits': {'osten': 'haus_3_wohnbereich'},
+        'items': [],
+        'in_development': True
+    },
+    'bathroom_3': {#Haus3
+        'name': 'Badezimmer',
+        'description': '.',
+        'exits': {'norden': 'haus_3_wohnbereich'},
+        'items': [],
+        'in_development': True
+    },
+    'bedroom_3': {#Haus3
+        'name': 'Schlafzimmer',
+        'description': '.',
+        'exits': {'osten': 'haus_3_wohnbereich'},
         'items': [],
         'in_development': True
     },
@@ -656,28 +704,36 @@ rooms = {
         'description': 'Du stehst auf der Straße, weitere kaputte Autos und blut sind auf der Straße sehbar. Im Osten liegt ein Park, ',
         'exits': {'norden': 'nord_östliche_weggabelung', 'westen': 'suedlich_haus', 'osten': 'park', 'süden': 'skyscraper_weggabelung'},
         'items': [],
-        'in_development': True
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
     },
     'park_straße': {#Stadt
         'name': 'Park Straße',
         'description': 'Du stehst auf der Straße, weitere kaputte Autos und blut sind auf der Straße sehbar. Im Osten liegt ein Park, ',
         'exits': {'norden': 'oestlich weggabelung', 'osten': 'park', 'süden': 'skyscraper_weggabelung'},
         'items': [],
-        'in_development': True
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
     },
     'skyscraper_weggabelung': {#Stadt
         'name': 'Skyscraper Weggabelung',
         'description': 'Du stehst an einer weggabelung, nach norden siehst du die Parkstraße, nach Süden siehst ein Hochhaus. Nach WESTEN ist Straße Pizzeria.',
         'exits': {'norden': 'park_straße', 'osten': 'straße_pizzeria', 'süden': 'weggabelung_skyscraper2'},
         'items': [],
-        'in_development': True
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
     },
     'weggabelung_skyscraper2': {#Stadt
         'name': 'Weggabelung Skyscraper 2',
         'description': 'Du stehst an einer weggabelung, nach norden siehst du die Skyscraperweggabelung. Nach westen ist Home Depot Straße Ost',
         'exits': {'norden': 'skyscraper_weggabelung','osten': 'home_depot_straße_ost'},
         'items': [],
-        'in_development': True
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
     },
     'noerdlich_haus': {#Stadt
         'name': 'Nördlich vom Versteck',
@@ -1169,6 +1225,7 @@ def describe_room():
         enemy_key = room['enemy']
         enemy = enemies.get(enemy_key)
         if enemy and enemy['health'] > 0:
+            add_to_history("")
             add_to_history(f">>> {enemy['name']} ist hier! <<<")
             add_to_history(f"HP: {enemy['health']}/{enemy['max_health']}")
             player_stats['in_combat'] = True
@@ -1630,6 +1687,7 @@ def enemy_counterattack(enemy):
         add_to_history("")
         add_to_history("=== DU BIST GESTORBEN ===")
         add_to_history("Tippe 'neu' um neu zu starten")
+        del rooms['exits']
 
 def melee_attack(target):
     """Nahkampf mit Stichwaffen"""
