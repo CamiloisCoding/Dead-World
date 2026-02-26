@@ -974,8 +974,6 @@ def draw_intro(current_time):
     screen.fill(BLACK)
     
     # Atmosphärische Schichten
-    crack_alpha = min(alpha, 80)
-    draw_cracks(screen, crack_alpha)
     draw_fog(screen, current_time, alpha)
     draw_particles(screen, current_time, alpha // 2)
     
@@ -2575,7 +2573,6 @@ def draw_menu(current_time):
     screen.fill(BLACK)
     
     # Atmosphärische Hintergrund-Schichten
-    draw_cracks(screen, 40)
     draw_fog(screen, current_time, 200)
     draw_particles(screen, current_time, 80)
     draw_vignette(screen, 160)
