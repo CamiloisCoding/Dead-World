@@ -14,6 +14,31 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MENU_MUSIC_PATH = os.path.join(BASE_DIR, "Game_music", "Ambient", "julius_galla__atmosphere-horror-2-loop.wav")
 menu_music_playing = False
 
+# Zombie Sounds - 4 zufällige Sounds beim Zombie-Auftauchen
+ZOMBIE_SOUND_DIR = os.path.join(BASE_DIR, "Game_music", "Zombie Sounds")
+ZOMBIE_SOUNDS = []
+for _zs_file in sorted(os.listdir(ZOMBIE_SOUND_DIR)):
+    if _zs_file.endswith(('.mp3', '.wav', '.ogg')):
+        ZOMBIE_SOUNDS.append(pygame.mixer.Sound(os.path.join(ZOMBIE_SOUND_DIR, _zs_file)))
+
+def play_random_zombie_sound():
+    """Spielt einen zufälligen Zombie-Sound ab"""
+    global _current_zombie_sound
+    if ZOMBIE_SOUNDS:
+        sound = random.choice(ZOMBIE_SOUNDS)
+        sound.set_volume(game_settings.get('sfx_volume', 0.7))
+        sound.play()
+        _current_zombie_sound = sound
+
+_current_zombie_sound = None
+
+def stop_zombie_sounds():
+    """Stoppt den aktuell spielenden Zombie-Sound"""
+    global _current_zombie_sound
+    if _current_zombie_sound:
+        _current_zombie_sound.stop()
+        _current_zombie_sound = None
+
 # Konstanten
 WIDTH, HEIGHT = 1200, 700
 FPS = 60
@@ -253,7 +278,7 @@ weapons = {
 
 # Gegner-Datenbank
 enemies = {
-    'zombie': {'name': 'Toxoplasma-Zombie', 'health': 100, 'max_health': 100, 'damage': [100, 100], 'distance': 'nah'},
+    'zombie': {'name': 'Toxoplasma-Zombie', 'health': 100, 'max_health': 100, 'damage': [8, 20], 'distance': 'nah'},
     'infizierter': {'name': 'Infizierter Mensch', 'health': 80, 'max_health': 80, 'damage': [8, 15], 'distance': 'mittel'}
 }
 
@@ -1311,6 +1336,7 @@ def describe_room():
     
     # Erste Begegnung mit Zombie im Startroom
     if current_room == 'start' and room.get('first_visit'):
+        play_random_zombie_sound()
         add_to_history("")
         add_to_history("Der Zombie taumelt auf dich zu!")
         add_to_history("Tentakel zucken aus seinem Mund.")
@@ -1326,6 +1352,7 @@ def describe_room():
     if current_room == 'wohnbereich' and room.get('zombie_spawn'):
         # Neuer Zombie im Wohnbereich - Health zurücksetzen
         enemies['zombie']['health'] = enemies['zombie']['max_health']
+        play_random_zombie_sound()
         add_to_history("")
         add_to_history("Der Zombie taumelt auf dich zu!")
         add_to_history("Tentakel zucken aus seinem Mund.")
@@ -1336,6 +1363,7 @@ def describe_room():
     if current_room == 'walmart_5' and room.get('zombie_spawn'):
         # Neuer Zombie im Wohnbereich - Health zurücksetzen
         enemies['zombie']['health'] = enemies['zombie']['max_health']
+        play_random_zombie_sound()
         add_to_history("")
         add_to_history("Der Zombie taumelt auf dich zu!")
         add_to_history("Tentakel zucken aus seinem Mund.")
@@ -1346,6 +1374,7 @@ def describe_room():
     if current_room == 'walmart_9' and room.get('zombie_spawn'):
         # Neuer Zombie im Wohnbereich - Health zurücksetzen
         enemies['zombie']['health'] = enemies['zombie']['max_health']
+        play_random_zombie_sound()
         add_to_history("")
         add_to_history("Der Zombie taumelt auf dich zu!")
         add_to_history("Tentakel zucken aus seinem Mund.")
@@ -1357,6 +1386,8 @@ def describe_room():
         enemy_key = room['enemy']
         enemy = enemies.get(enemy_key)
         if enemy and enemy['health'] > 0:
+            if enemy_key in ('zombie', 'infizierter'):
+                play_random_zombie_sound()
             add_to_history("")
             add_to_history(f">>> {enemy['name']} ist hier! <<<")
             add_to_history(f"HP: {enemy['health']}/{enemy['max_health']}")
@@ -1810,6 +1841,7 @@ def ranged_attack(target):
         add_to_history(f"{enemy['name']} HP: {enemy['health']}/{enemy['max_health']}")
         
         if enemy['health'] <= 0:
+            stop_zombie_sounds()
             add_to_history(f"Der {enemy['name']} bricht zusammen!")
             room['enemy'] = None
             player_stats['in_combat'] = False
@@ -2168,6 +2200,7 @@ def handle_melee_qte(success, data):
             level_up_fists()
         
         if enemy['health'] <= 0:
+            stop_zombie_sounds()
             add_to_history("")
             add_to_history("Der Zombie zuckt ein letztes Mal.")
             add_to_history("Schwarze Flüssigkeit sickert aus dem zerschmetterten Schädel.")
