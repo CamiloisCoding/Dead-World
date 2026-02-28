@@ -276,6 +276,18 @@ weapons = {
     'machete': {'name': 'Machete', 'type': 'melee', 'damage': [30, 45], 'crit_chance': 0.35},
 }
 
+# Essbare Items (Zork-inspiriert)
+food_items = {
+    'konserven': {'name': 'Konservendose', 'heal': 25, 'message': 'Du öffnest die Konservendose und isst den Inhalt. Nicht gerade ein Gourmetmahl, aber es füllt den Magen.'},
+    'medkit': {'name': 'Medkit', 'heal': 50, 'message': 'Du öffnest das Medkit und versorgst deine Wunden. Schon besser.'},
+    'schokoriegel': {'name': 'Schokoriegel', 'heal': 10, 'message': 'Du beißt in den alten Schokoriegel. Etwas trocken, aber der Zucker gibt dir Energie.'},
+    'dosenfleisch': {'name': 'Dosenfleisch', 'heal': 30, 'message': 'Du öffnest die Dose Fleisch. Es riecht fragwürdig, schmeckt aber noch... akzeptabel.'},
+    'wasser': {'name': 'Wasserflasche', 'heal': 15, 'message': 'Du trinkst die Wasserflasche in großen Zügen leer. Erfrischend.'},
+    'energieriegel': {'name': 'Energieriegel', 'heal': 20, 'message': 'Du isst den Energieriegel. Kompakt und nahrhaft - genau was du brauchst.'},
+    'crackers': {'name': 'Crackers', 'heal': 10, 'message': 'Du knabberst die trockenen Crackers. Nicht viel, aber besser als nichts.'},
+    'apfel': {'name': 'Apfel', 'heal': 12, 'message': 'Du beißt in den Apfel. Etwas schrumpelig, aber erstaunlich saftig.'},
+}
+
 # Gegner-Datenbank
 enemies = {
     'zombie': {'name': 'Toxoplasma-Zombie', 'health': 100, 'max_health': 100, 'damage': [8, 20], 'distance': 'nah'},
@@ -403,7 +415,7 @@ rooms = {
         'name': 'Küche',
         'description': 'Du stehst in der küche, alle wandschränke sind offen, kaputte teller auf dem boden',
         'exits': {'westen': 'wohnbereich'},
-        'items': [],
+        'items': ['dosenfleisch', 'crackers'],
         'in_development': False  
      },
      'wohnbereich': {#Spawn haus 
@@ -433,7 +445,7 @@ rooms = {
         'name': 'Lager Raum',
         'description': 'Im lagerraum dirnnen stehen 3 Schwerlastregale mit weiterem dosen essen und wasser, ein bett steht in der rechten ecke. Im norden gehts in den ',
         'exits': {'norden': 'keller'},
-        'items': [],
+        'items': ['wasser', 'konserven'],
         'in_development': False
     },
     'suedlich_haus': {#Stadt
@@ -610,7 +622,7 @@ rooms = {
         'name': 'Walmart',
         'description': '',
         'exits': {'süden': 'walmart_2', 'osten': 'walmart_4'},
-        'items': [],
+        'items': ['schokoriegel', 'energieriegel'],
         'in_development': True
     },
     'walmart_4': {#Walmart
@@ -742,7 +754,7 @@ rooms = {
         'name': 'Küche',
         'description': '.',
         'exits': {'osten': 'haus_3_wohnbereich'},
-        'items': [],
+        'items': ['apfel'],
         'in_development': True
     },
     'bathroom_3': {#Haus3
@@ -1452,6 +1464,7 @@ def process_command(command):
         add_to_history("Gegenstände:")
         add_to_history("  nimm [item] - Item aufheben")
         add_to_history("  lese [item] - Item lesen (Zeitung, Notizen)")
+        add_to_history("  esse [item] - Essen/Trinken konsumieren")
         add_to_history("  inventar, inv - Inventar anzeigen")
         add_to_history("")
         add_to_history("Kampf:")
@@ -1585,6 +1598,33 @@ def process_command(command):
         add_to_history(f"HP: [{hp_bar}] {player_stats['health']}/100")
         add_to_history("")
         
+    elif cmd.startswith('esse ') or cmd.startswith('iss '):
+        # Esse-Befehl: Essen/Trinken konsumieren (Zork-inspiriert)
+        if cmd.startswith('esse '):
+            item = cmd[5:].strip()
+        else:
+            item = cmd[4:].strip()
+        
+        if item not in player_inventory:
+            add_to_history(f"Du hast kein '{item}' im Inventar.")
+            add_to_history("")
+        elif item not in food_items:
+            add_to_history(f"'{item}' kann man nicht essen.")
+            add_to_history("")
+        else:
+            food = food_items[item]
+            old_hp = player_stats['health']
+            player_stats['health'] = min(100, player_stats['health'] + food['heal'])
+            healed = player_stats['health'] - old_hp
+            player_inventory.remove(item)
+            
+            add_to_history(food['message'])
+            if healed > 0:
+                add_to_history(f"[+{healed} HP] ({player_stats['health']}/100)")
+            else:
+                add_to_history(f"Dein HP ist bereits voll. ({player_stats['health']}/100)")
+            add_to_history("")
+    
     elif cmd in ['schaue', 'look', 'l']:
         describe_room()
     
