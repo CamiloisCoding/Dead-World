@@ -271,7 +271,7 @@ weapons = {
     'kampfmesser': {'name': 'Kampfmesser', 'type': 'melee', 'damage': [25, 40], 'crit_chance': 0.35},
     'feuerlöscher': {'name': 'Feuerlöscher', 'type': 'melee', 'damage': [50, 80], 'crit_chance': 0.25},
     'fäuste': {'name': 'Fäuste', 'type': 'melee', 'damage': [99, 100], 'black_flash': 1.00},
-    'baseball_schläger': {'name': 'Baseball Schläger', 'type': 'melee', 'damage': [25, 35], 'crit_chance': 0.25},
+    'baseball_schläger': {'name': 'Bassseball Schläger', 'type': 'melee', 'damage': [25, 35], 'crit_chance': 0.25},
     'axt': {'name': 'Axt', 'type': 'melee', 'damage': [35, 50], 'crit_chance': 0.3},
     'machete': {'name': 'Machete', 'type': 'melee', 'damage': [30, 45], 'crit_chance': 0.35},
 }
