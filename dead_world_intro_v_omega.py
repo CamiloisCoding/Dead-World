@@ -146,10 +146,25 @@ INTRO = 0
 MENU = 1
 OPTIONS = 2
 GAME = 3
+MAP = 4
+MAP = 4
 current_state = INTRO
+
+# Map-System Globals (Graph View)
+map_camera_x = 0
+map_camera_y = 0
+map_zoom = 1.0
+map_target_x = 0
+map_target_y = 0
+map_cursor_room = None
+map_dragging = False
+map_drag_last_pos = (0, 0)
+
+visited_rooms = set()  # Besuchte Räume (zB. für Resets/Stats)
 
 # Menü-Navigation
 menu_selected_index = 0
+options_selected_index = 0  # 0=Auflösung, 1=Musik, 2=Effekte
 
 # Game Settings
 game_settings = {
@@ -823,6 +838,293 @@ rooms = {
     },     
 }
 
+# ========================
+# HIERARCHICAL CONTAINER SYSTEM
+# ========================
+# Architecture: World → Building → Floor → Room → Objects
+# All movement between rooms passes through Discrete Transition Nodes.
+
+BUILDING_HIERARCHY = {
+    'bunker': {
+        'name': 'Bunker',
+        'floors': {
+            'main': ['start', 'corridor', 'laboratory', 'storage', 'tunnel'],
+        },
+    },
+    'versteck': {
+        'name': 'Versteck (Safehouse)',
+        'floors': {
+            'erdgeschoss': ['spawn', 'schlafzimmer', 'flur', 'badezimmer',
+                           'eingangsbereich', 'wohnzimmer', 'wohnbereich',
+                           'schlafzimmer2', 'kueche', 'vordertuer', 'treppen'],
+            'keller': ['keller', 'lagerraum'],
+        },
+    },
+    'stadt': {
+        'name': 'Stadt',
+        'floors': {
+            'straßen': ['suedlich_haus', 'westlich_haus_gabelung',
+                       'oestlich_weggabelung', 'nord_westliche_weggabelung',
+                       'nord_östliche_weggabelung', 'östliche_straße',
+                       'norden_straße', 'park_straße', 'skyscraper_weggabelung',
+                       'weggabelung_skyscraper2', 'noerdlich_haus'],
+        },
+    },
+    'krankenhaus': {
+        'name': 'Krankenhaus',
+        'floors': {
+            'main': ['krankenhaus_straße', 'krankenhaus_eingang'],
+        },
+    },
+    'bibliothek': {
+        'name': 'Bibliothek',
+        'floors': {
+            'main': ['bibliothek_straße', 'bibliothek_eingang',
+                    'bibliothek_1.1', 'bibliothek_1.2', 'bibliothek_2',
+                    'bibliothek_3', 'bibliothek_4', 'bibliothek_5',
+                    'bibliothek_6', 'bibliothek_7', 'bibliothek_8'],
+        },
+    },
+    'walmart': {
+        'name': 'Walmart',
+        'floors': {
+            'main': ['parkplatz', 'walmart_eingang', 'walmart_1', 'walmart_2',
+                    'walmart_3', 'walmart_4', 'walmart_5', 'walmart_6',
+                    'walmart_7', 'walmart_8', 'walmart_9', 'walmart_10',
+                    'walmart_11', 'walmart_12.1', 'walmart_12.2',
+                    'walmart_13', 'walmart_14'],
+        },
+    },
+    'haus1': {
+        'name': 'Haus 1',
+        'floors': {'main': ['haus1']},
+    },
+    'haus3': {
+        'name': 'Haus 3',
+        'floors': {
+            'main': ['haus_3_eingang', 'haus_3_v', 'haus_3_wohnbereich',
+                    'wohnzimmer_h3', 'küche_h3', 'bathroom_3', 'bedroom_3'],
+        },
+    },
+}
+
+# Reverse lookup: room_key → (building_key, floor_key)
+_room_to_container = {}
+for _bk, _bd in BUILDING_HIERARCHY.items():
+    for _fk, _fr in _bd['floors'].items():
+        for _rk in _fr:
+            _room_to_container[_rk] = (_bk, _fk)
+
+# ===== DISCRETE TRANSITION NODES =====
+# Every connection between rooms is an explicit transition node.
+# type: 'door', 'passage', 'stairs', 'entrance', 'exit'
+# locked: if True, movement is blocked until unlocked
+TRANSITIONS = [
+    # --- BUNKER ---
+    {'id': 'start_corridor', 'type': 'door', 'from': 'start', 'to': 'corridor',
+     'dir_from': 'norden', 'dir_to': 'süden', 'locked': True},
+    {'id': 'corridor_lab', 'type': 'door', 'from': 'corridor', 'to': 'laboratory',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'corridor_storage', 'type': 'door', 'from': 'corridor', 'to': 'storage',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'storage_tunnel', 'type': 'passage', 'from': 'storage', 'to': 'tunnel',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    # Bunker → Versteck (cross-building, triggers timeskip)
+    {'id': 'tunnel_spawn', 'type': 'passage', 'from': 'tunnel', 'to': 'spawn',
+     'dir_from': 'norden', 'dir_to': None, 'trigger': 'timeskip'},
+    # --- VERSTECK ERDGESCHOSS ---
+    {'id': 'schlaf_flur', 'type': 'door', 'from': 'schlafzimmer', 'to': 'flur',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'flur_bad', 'type': 'door', 'from': 'flur', 'to': 'badezimmer',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'flur_eingang', 'type': 'door', 'from': 'flur', 'to': 'eingangsbereich',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'eingang_wohnbereich', 'type': 'door', 'from': 'eingangsbereich', 'to': 'wohnbereich',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'eingang_wohnzimmer', 'type': 'door', 'from': 'eingangsbereich', 'to': 'wohnzimmer',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'eingang_vordertuer', 'type': 'door', 'from': 'eingangsbereich', 'to': 'vordertuer',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'wb_schlaf2', 'type': 'door', 'from': 'wohnbereich', 'to': 'schlafzimmer2',
+     'dir_from': 'südosten', 'dir_to': 'nordwesten'},
+    {'id': 'wb_kueche', 'type': 'door', 'from': 'wohnbereich', 'to': 'kueche',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'wb_treppen', 'type': 'passage', 'from': 'wohnbereich', 'to': 'treppen',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    # Versteck floor transition (stairs)
+    {'id': 'treppen_keller', 'type': 'stairs', 'from': 'treppen', 'to': 'keller',
+     'dir_from': 'runter', 'dir_to': 'hoch'},
+    {'id': 'keller_lager', 'type': 'door', 'from': 'keller', 'to': 'lagerraum',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    # Versteck exit → Stadt
+    {'id': 'vordertuer_strasse', 'type': 'entrance', 'from': 'vordertuer', 'to': 'suedlich_haus',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    # --- STADT ---
+    {'id': 'sued_west', 'type': 'passage', 'from': 'suedlich_haus', 'to': 'westlich_haus_gabelung',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'sued_ost', 'type': 'passage', 'from': 'suedlich_haus', 'to': 'oestlich_weggabelung',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'sued_haus1', 'type': 'passage', 'from': 'suedlich_haus', 'to': 'haus1',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'west_nw', 'type': 'passage', 'from': 'westlich_haus_gabelung', 'to': 'nord_westliche_weggabelung',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'west_kh', 'type': 'passage', 'from': 'westlich_haus_gabelung', 'to': 'krankenhaus_straße',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'kh_str_eing', 'type': 'entrance', 'from': 'krankenhaus_straße', 'to': 'krankenhaus_eingang',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'nw_ost_str', 'type': 'passage', 'from': 'nord_westliche_weggabelung', 'to': 'östliche_straße',
+     'dir_from': 'osten', 'dir_to': 'norden'},
+    {'id': 'nw_bib', 'type': 'passage', 'from': 'nord_westliche_weggabelung', 'to': 'bibliothek_straße',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'ost_str_ost_gab', 'type': 'passage', 'from': 'östliche_straße', 'to': 'oestlich_weggabelung',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'ost_gab_no', 'type': 'passage', 'from': 'oestlich_weggabelung', 'to': 'nord_östliche_weggabelung',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'ost_gab_park', 'type': 'passage', 'from': 'oestlich_weggabelung', 'to': 'park_straße',
+     'dir_from': 'osten', 'dir_to': 'norden'},
+    {'id': 'ost_gab_sky', 'type': 'passage', 'from': 'oestlich_weggabelung', 'to': 'skyscraper_weggabelung',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'sky_sky2', 'type': 'passage', 'from': 'skyscraper_weggabelung', 'to': 'weggabelung_skyscraper2',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'no_nord_str', 'type': 'passage', 'from': 'nord_östliche_weggabelung', 'to': 'norden_straße',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'no_parkplatz', 'type': 'passage', 'from': 'nord_östliche_weggabelung', 'to': 'parkplatz',
+     'dir_from': 'osten', 'dir_to': 'süden'},
+    {'id': 'nord_str_park', 'type': 'passage', 'from': 'norden_straße', 'to': 'parkplatz',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'nord_str_h3', 'type': 'entrance', 'from': 'norden_straße', 'to': 'haus_3_eingang',
+     'dir_from': 'westen', 'dir_to': None},
+    # --- BIBLIOTHEK ---
+    {'id': 'bib_str_eing', 'type': 'entrance', 'from': 'bibliothek_straße', 'to': 'bibliothek_eingang',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'bib_eing_1', 'type': 'door', 'from': 'bibliothek_eingang', 'to': 'bibliothek_1.1',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'bib_1_12', 'type': 'passage', 'from': 'bibliothek_1.1', 'to': 'bibliothek_1.2',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'bib_1_2', 'type': 'passage', 'from': 'bibliothek_1.1', 'to': 'bibliothek_2',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'bib_2_3', 'type': 'passage', 'from': 'bibliothek_2', 'to': 'bibliothek_3',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'bib_3_4', 'type': 'passage', 'from': 'bibliothek_3', 'to': 'bibliothek_4',
+     'dir_from': 'norden', 'dir_to': 'süden', 'locked': True, 'lock_msg': 'Ein großes Bücherregal versperrt den Weg nach NORDEN.\nVielleicht kannst du es zur Seite schieben?'},
+    {'id': 'bib_4_5', 'type': 'passage', 'from': 'bibliothek_4', 'to': 'bibliothek_5',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'bib_5_6', 'type': 'passage', 'from': 'bibliothek_5', 'to': 'bibliothek_6',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'bib_6_7', 'type': 'passage', 'from': 'bibliothek_6', 'to': 'bibliothek_7',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'bib_7_8', 'type': 'passage', 'from': 'bibliothek_7', 'to': 'bibliothek_8',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    # --- WALMART ---
+    {'id': 'park_wm_eing', 'type': 'entrance', 'from': 'parkplatz', 'to': 'walmart_eingang',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'wm_e_1', 'type': 'passage', 'from': 'walmart_eingang', 'to': 'walmart_1',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'wm_1_2', 'type': 'passage', 'from': 'walmart_1', 'to': 'walmart_2',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'wm_2_3', 'type': 'passage', 'from': 'walmart_2', 'to': 'walmart_3',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'wm_3_4', 'type': 'passage', 'from': 'walmart_3', 'to': 'walmart_4',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'wm_4_5', 'type': 'passage', 'from': 'walmart_4', 'to': 'walmart_5',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'wm_5_6', 'type': 'passage', 'from': 'walmart_5', 'to': 'walmart_6',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'wm_6_7', 'type': 'passage', 'from': 'walmart_6', 'to': 'walmart_7',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'wm_7_8', 'type': 'passage', 'from': 'walmart_7', 'to': 'walmart_8',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'wm_8_9', 'type': 'passage', 'from': 'walmart_8', 'to': 'walmart_9',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'wm_9_10', 'type': 'passage', 'from': 'walmart_9', 'to': 'walmart_10',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'wm_10_11', 'type': 'passage', 'from': 'walmart_10', 'to': 'walmart_11',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'wm_11_121', 'type': 'passage', 'from': 'walmart_11', 'to': 'walmart_12.1',
+     'dir_from': 'westen', 'dir_to': 'norden'},
+    {'id': 'wm_11_122', 'type': 'passage', 'from': 'walmart_11', 'to': 'walmart_12.2',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'wm_121_13', 'type': 'passage', 'from': 'walmart_12.1', 'to': 'walmart_13',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'wm_13_14', 'type': 'passage', 'from': 'walmart_13', 'to': 'walmart_14',
+     'dir_from': 'westen', 'dir_to': 'süden'},
+    # --- HAUS 1 ---
+    {'id': 'haus1_tuer', 'type': 'door', 'from': 'haus1', 'to': 'haus1_vordertür',
+     'dir_from': 'osten', 'dir_to': None, 'locked': True, 'lock_msg': 'Die Tür ist fest verschlossen.\nVielleicht kannst du sie aufbrechen?'},
+    # --- HAUS 3 ---
+    {'id': 'h3_eing_v', 'type': 'entrance', 'from': 'haus_3_eingang', 'to': 'haus_3_v',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'h3_v_wz', 'type': 'door', 'from': 'haus_3_v', 'to': 'wohnzimmer_h3',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'h3_v_wb', 'type': 'door', 'from': 'haus_3_v', 'to': 'haus_3_wohnbereich',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'h3_wb_kueche', 'type': 'door', 'from': 'haus_3_wohnbereich', 'to': 'küche_h3',
+     'dir_from': 'norden', 'dir_to': 'osten'},
+    {'id': 'h3_wb_bath', 'type': 'door', 'from': 'haus_3_wohnbereich', 'to': 'bathroom_3',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'h3_wb_bed', 'type': 'door', 'from': 'haus_3_wohnbereich', 'to': 'bedroom_3',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+]
+
+# Build transition lookup: room_key → list of transitions from that room
+_transitions_from = {}
+_transitions_by_id = {}
+for _t in TRANSITIONS:
+    _t.setdefault('locked', False)
+    _t.setdefault('trigger', None)
+    _t.setdefault('lock_msg', None)
+    _transitions_by_id[_t['id']] = _t
+    _transitions_from.setdefault(_t['from'], []).append(_t)
+    if _t.get('dir_to'):  # bidirectional
+        _transitions_from.setdefault(_t['to'], []).append(_t)
+
+def get_room_context(room_key):
+    """Returns (building_key, building_name, floor_key) for a room"""
+    ctx = _room_to_container.get(room_key)
+    if ctx:
+        bldg = BUILDING_HIERARCHY[ctx[0]]
+        return (ctx[0], bldg['name'], ctx[1])
+    return ('unbekannt', 'Unbekannt', 'unbekannt')
+
+def get_transitions_from(room_key):
+    """Returns list of (direction, target_room, transition) from this room"""
+    result = []
+    for t in _transitions_from.get(room_key, []):
+        if t['from'] == room_key:
+            result.append((t['dir_from'], t['to'], t))
+        elif t['to'] == room_key and t.get('dir_to'):
+            result.append((t['dir_to'], t['from'], t))
+    return result
+
+def try_transition(room_key, direction):
+    """Attempt to move from room_key in direction. Returns (success, target, transition, message)"""
+    for d, target, t in get_transitions_from(room_key):
+        if d == direction:
+            if t.get('locked'):
+                msg = t.get('lock_msg', 'Der Weg ist versperrt.')
+                return (False, None, t, msg)
+            return (True, target, t, None)
+    return (False, None, None, 'Du kannst nicht in diese Richtung gehen.')
+
+def unlock_transition(transition_id):
+    """Unlocks a transition node by ID"""
+    t = _transitions_by_id.get(transition_id)
+    if t:
+        t['locked'] = False
+
+def reset_transitions():
+    """Resets all transitions to initial state"""
+    for t in TRANSITIONS:
+        if t['id'] == 'start_corridor':
+            t['locked'] = True
+        elif t['id'] == 'bib_3_4':
+            t['locked'] = True
+        elif t['id'] == 'haus1_tuer':
+            t['locked'] = True
+        else:
+            t['locked'] = False
+
+
 def toggle_fullscreen():
     global screen, fullscreen
     fullscreen = not fullscreen
@@ -879,16 +1181,14 @@ def draw_cracked_text(surface, text, pos, color, time, font=None):
     shake_x = math.sin(time * 0.003) * scale(2)
     shake_y = math.cos(time * 0.004) * scale(1)
     
-
-    
-    # Schatten (nur 1 Offset, sauber)
-    shadow = font.render(text, True, DEEP_RED)
+    # Schatten (nur 1 Offset, sauber) — convert_alpha() für echte Transparenz
+    shadow = font.render(text, True, DEEP_RED).convert_alpha()
     shadow_off = scale(3)
     shadow_rect = shadow.get_rect(center=(pos[0] + shadow_off + shake_x, pos[1] + shadow_off + shake_y))
     surface.blit(shadow, shadow_rect)
     
-    # Haupt-Text
-    text_surface = font.render(text, True, color)
+    # Haupt-Text — convert_alpha() für echte Transparenz
+    text_surface = font.render(text, True, color).convert_alpha()
     text_rect = text_surface.get_rect(center=pos)
     final_rect = text_rect.move(shake_x, shake_y)
     surface.blit(text_surface, final_rect)
@@ -1078,13 +1378,15 @@ class MenuButton:
             self.action()
 
 def start_game():
-    global current_state, game_history, current_room, player_inventory, prolog_shown, prolog_lines, prolog_line_index, menu_music_playing
+    global current_state, game_history, current_room, player_inventory, prolog_shown, prolog_lines, prolog_line_index, menu_music_playing, visited_rooms, map_coords_dirty
     current_state = GAME
     game_history = []
     current_room = 'start'
     player_inventory = ['fäuste']
     prolog_shown = False
     prolog_line_index = 0
+    visited_rooms = {'start'}  # Start-Raum als besucht markieren
+    map_coords_dirty = True
     
     # Menü-Musik ausblenden
     pygame.mixer.music.fadeout(800)
@@ -1258,49 +1560,38 @@ def update_typewriter():
             _start_next_typewriter_line()
 
 def move_direction(direction):
-    """Bewege Spieler in eine Richtung"""
+    """Bewege Spieler in eine Richtung (via Transition Nodes)"""
     global current_room
     
-    room = rooms[current_room]
+    # Try to find and use a transition node
+    success, target, transition, msg = try_transition(current_room, direction)
     
-    # 50% Zombie-Spawn in Räumen mit spawn_chance
-    if direction in room['exits']:
-        next_room_key = room['exits'][direction]
-        next_room = rooms.get(next_room_key)
-        if next_room and next_room.get('spawn_chance') and spawn_chance():
-            enemies['zombie']['health'] = enemies['zombie']['max_health']
-            next_room['enemy'] = 'zombie'
-            next_room['zombie_spawn'] = True
+    if not success:
+        # Locked or no exit in that direction
+        if msg:
+            for line in msg.split('\n'):
+                add_to_history(line)
+        add_to_history("")
+        return
     
-    if direction in room['exits']:
-        next_room = room['exits'][direction]
-        
-        # Spezialfall: Bücherregal blockiert bibliothek_4
-        if current_room == 'bibliothek_3' and next_room == 'bibliothek_4' and not bibliothek_4_schrank_geschoben:
-            add_to_history("Ein großes Bücherregal versperrt den Weg nach NORDEN.")
-            add_to_history("Vielleicht kannst du es zur Seite schieben?")
-            add_to_history("")
-            return
-        
-        #
-        if current_room == 'haus1' and next_room == 'haus1_vordertür' and not haus1_tür_auf:
-            add_to_history("Die Tür ist fest verschlossen.")
-            add_to_history("Vielleicht kannst du sie aufbrechen?")
-            add_to_history("")
-            return
-                
-        # Spezialfall: Zeitsprung wenn man zum Spawn geht
-        if next_room == 'spawn' and current_room == 'tunnel':
-            trigger_two_year_timeskip()
-            return
-        
-        current_room = next_room
-        add_to_history(f"Du gehst nach {direction.upper()}...")
-        add_to_history("")
-        describe_room()
-    else:
-        add_to_history("Du kannst nicht in diese Richtung gehen.")
-        add_to_history("")
+    # Check for triggers on this transition
+    if transition and transition.get('trigger') == 'timeskip':
+        trigger_two_year_timeskip()
+        return
+    
+    # 50% Zombie-Spawn in target rooms with spawn_chance
+    next_room = rooms.get(target)
+    if next_room and next_room.get('spawn_chance') and spawn_chance():
+        enemies['zombie']['health'] = enemies['zombie']['max_health']
+        next_room['enemy'] = 'zombie'
+        next_room['zombie_spawn'] = True
+    
+    # Move player
+    current_room = target
+    visited_rooms.add(current_room)
+    add_to_history(f"Du gehst nach {direction.upper()}...")
+    add_to_history("")
+    describe_room()
 
 def trigger_two_year_timeskip():
     """Triggert den 2-Jahres-Zeitsprung zum Spawn-Haus"""
@@ -1338,6 +1629,7 @@ def trigger_two_year_timeskip():
     
     # Teleportiere zum Lagerraum
     current_room = 'lagerraum'
+    visited_rooms.add('lagerraum')  # Neuen Raum als besucht markieren
     
     add_to_history("")
     describe_room()
@@ -1358,7 +1650,16 @@ def describe_room():
     
     add_to_history(f"> {room['name']}")
     add_to_history(room['description'])
-    if room['items']:
+    
+    # Exits anzeigen
+    transitions = get_transitions_from(current_room)
+    if transitions:
+        exit_dirs = [d.capitalize() for d, tgt, t in transitions if not t.get('locked')]
+        locked_dirs = [d.capitalize() + " (Verschlossen)" for d, tgt, t in transitions if t.get('locked')]
+        all_exits = exit_dirs + locked_dirs
+        add_to_history(f"Ausgänge: {', '.join(all_exits)}")
+    
+    if room.get('items'):
         add_to_history(f"Du siehst: {', '.join(room['items'])}")
     
     if current_room == 'wohnbereich' and room.get('zombie_spawn'):
@@ -1408,10 +1709,232 @@ def describe_room():
     add_to_history("")
 
 
+# ========================
+# GRAPHISCHES KARTEN-SYSTEM (Node Graph)
+# ========================
+
+# Hardcoded node coordinates for the hierarchical map (x, y) grid units
+GRAPH_LAYOUT = {
+    # Bunker
+    'start': (0, 0), 'corridor': (0, 2), 'laboratory': (-2, 2.5), 
+    'storage': (2, 2), 'tunnel': (2, 4),
+    
+    # Safehouse (Versteck) 
+    'spawn': (6, 0), 'eingangsbereich': (8, 0), 'vordertuer': (8, -2),
+    'wohnzimmer': (10, 0), 'wohnbereich': (8, 2), 'kueche': (10, 2),
+    'schlafzimmer2': (10, 4), 'treppen': (8, 4), 'flur': (6, 2),
+    'schlafzimmer': (6, 4), 'badezimmer': (4, 2),
+    # Safehouse Keller
+    'keller': (12, 5), 'lagerraum': (14, 5),
+    
+    # Stadt
+    'suedlich_haus': (8, -5), 'westlich_haus_gabelung': (5, -5),
+    'haus1': (8, -7), 'oestlich_weggabelung': (11, -5),
+    'nord_westliche_weggabelung': (5, -8), 'östliche_straße': (11, -8),
+    'nord_östliche_weggabelung': (11, -11), 'norden_straße': (11, -14),
+    'park_straße': (14, -5), 'skyscraper_weggabelung': (11, -2),
+    'weggabelung_skyscraper2': (11, 0), 'noerdlich_haus': (14, -8),
+    'krankenhaus_straße': (3, -5), 'bibliothek_straße': (5, -11),
+    
+    # Krankenhaus
+    'krankenhaus_eingang': (1, -5),
+    
+    # Bibliothek
+    'bibliothek_eingang': (5, -13), 'bibliothek_1.1': (3, -13),
+    'bibliothek_1.2': (1, -13), 'bibliothek_2': (3, -15),
+    'bibliothek_3': (3, -17), 'bibliothek_4': (3, -19),
+    'bibliothek_5': (1, -19), 'bibliothek_6': (5, -19),
+    'bibliothek_7': (1, -21), 'bibliothek_8': (5, -21),
+    
+    # Walmart
+    'parkplatz': (14, -14), 'walmart_eingang': (17, -14),
+    'walmart_1': (19, -14), 'walmart_2': (19, -16), 'walmart_3': (19, -12),
+    'walmart_4': (21, -14), 'walmart_5': (21, -16), 'walmart_6': (21, -12),
+    'walmart_7': (23, -14), 'walmart_8': (23, -16), 'walmart_9': (23, -12),
+    'walmart_10': (25, -14), 'walmart_11': (25, -16),
+    'walmart_12.1': (25, -12), 'walmart_12.2': (27, -12),
+    'walmart_13': (25, -10), 'walmart_14': (23, -10),
+    
+    # Haus 3
+    'haus_3_eingang': (7, -14), 'haus_3_v': (7, -16), 
+    'haus_3_wohnbereich': (5, -16), 'wohnzimmer_h3': (7, -18),
+    'küche_h3': (9, -16), 'bathroom_3': (5, -18), 'bedroom_3': (3, -16)
+}
+
+def draw_map(current_time):
+    """Zeichnet den Hierarchischen Node Graph basierend auf Nested Containern"""
+    screen.fill((20, 20, 25))
+    
+    UNIT = scale(50) * map_zoom
+    center_x = screen.get_width() / 2 - (map_camera_x * map_zoom * 50)
+    center_y = screen.get_height() / 2 - (map_camera_y * map_zoom * 50)
+    
+    def get_pos(room_k):
+        rx, ry = GRAPH_LAYOUT.get(room_k, (0, 0))
+        return (int(center_x + rx * UNIT), int(center_y + ry * UNIT))
+        
+    # 1) Gebäude & Stockwerk Bounding Boxes (Gruppierungen)
+    building_colors = {
+        'bunker': (40, 60, 40), 'versteck': (40, 50, 70), 
+        'stadt': (50, 50, 50), 'krankenhaus': (70, 40, 40),
+        'bibliothek': (60, 40, 70), 'walmart': (70, 60, 40),
+        'haus1': (60, 50, 40), 'haus3': (50, 60, 40)
+    }
+    
+    # Finde Bounding Boxes für jedes Floor in jedem Building
+    for b_key, b_data in BUILDING_HIERARCHY.items():
+        b_color = building_colors.get(b_key, (60, 60, 60))
+        
+        # Sammele alle Räume dieses Gebäudes
+        b_rooms = []
+        for f_key, f_rooms in b_data.get('floors', {}).items():
+            b_rooms.extend(f_rooms)
+            
+        if not b_rooms: continue
+        
+        # Gebäude Bounding Box
+        min_x = min([GRAPH_LAYOUT.get(r, (0,0))[0] for r in b_rooms])
+        max_x = max([GRAPH_LAYOUT.get(r, (0,0))[0] for r in b_rooms])
+        min_y = min([GRAPH_LAYOUT.get(r, (0,0))[1] for r in b_rooms])
+        max_y = max([GRAPH_LAYOUT.get(r, (0,0))[1] for r in b_rooms])
+        
+        pad = 1.2
+        bx1, by1 = int(center_x + (min_x - pad) * UNIT), int(center_y + (min_y - pad) * UNIT)
+        bx2, by2 = int(center_x + (max_x + pad) * UNIT), int(center_y + (max_y + pad) * UNIT)
+        bw, bh = bx2 - bx1, by2 - by1
+        
+        # Draw Building Box
+        pygame.draw.rect(screen, (b_color[0]-20, b_color[1]-20, b_color[2]-20, 100), (bx1, by1, bw, bh))
+        pygame.draw.rect(screen, b_color, (bx1, by1, bw, bh), max(1, int(2*map_zoom)))
+        
+        # Building Label
+        name_surf = font_terminal.render(b_data.get('name', b_key).upper(), True, (150, 150, 150))
+        screen.blit(name_surf, (bx1 + 10, by1 + 10))
+        
+        # Floor Bounding Boxes
+        for f_key, f_rooms in b_data.get('floors', {}).items():
+            if not f_rooms: continue
+            min_x = min([GRAPH_LAYOUT.get(r, (0,0))[0] for r in f_rooms])
+            max_x = max([GRAPH_LAYOUT.get(r, (0,0))[0] for r in f_rooms])
+            min_y = min([GRAPH_LAYOUT.get(r, (0,0))[1] for r in f_rooms])
+            max_y = max([GRAPH_LAYOUT.get(r, (0,0))[1] for r in f_rooms])
+            
+            fpad = 0.8
+            fx1, fy1 = int(center_x + (min_x - fpad) * UNIT), int(center_y + (min_y - fpad) * UNIT)
+            fx2, fy2 = int(center_x + (max_x + fpad) * UNIT), int(center_y + (max_y + fpad) * UNIT)
+            fw, fh = fx2 - fx1, fy2 - fy1
+            
+            pygame.draw.rect(screen, (50, 50, 50), (fx1, fy1, fw, fh), max(1, int(1*map_zoom)))
+            floor_surf = font_tiny.render(f"FL: {f_key}", True, (100, 100, 100))
+            screen.blit(floor_surf, (fx1 + 5, fy1 + 5))
+
+    # 2) Transitions (Kanten/Edges)
+    for t in TRANSITIONS:
+        r_from = t.get('from')
+        r_to = t.get('to')
+        
+        if not r_from or not r_to: continue
+        # if r_from not in visited_rooms and r_to not in visited_rooms: continue
+        
+        p1 = get_pos(r_from)
+        p2 = get_pos(r_to)
+        
+        locked = t.get('locked', False)
+        t_type = t.get('type', 'passage')
+        
+        color = (200, 50, 50) if locked else (100, 150, 200)
+        thickness = max(1, int(3 * map_zoom)) if locked else max(1, int(2 * map_zoom))
+        
+        if t_type == 'stairs':
+            # Draw dashed line for stairs
+            import math
+            dx = p2[0] - p1[0]
+            dy = p2[1] - p1[1]
+            dist = math.hypot(dx, dy)
+            if dist > 0:
+                dx, dy = dx / dist, dy / dist
+                curr = 0
+                while curr < dist:
+                    nxt = min(curr + 10*map_zoom, dist)
+                    start = (int(p1[0] + dx * curr), int(p1[1] + dy * curr))
+                    end = (int(p1[0] + dx * nxt), int(p1[1] + dy * nxt))
+                    pygame.draw.line(screen, (200, 200, 50), start, end, thickness)
+                    curr += 20*map_zoom
+        else:
+            pygame.draw.line(screen, color, p1, p2, thickness)
+            
+            # Wenn gesperrt, zeichne ein kleines X in der Mitte
+            if locked:
+                mx, my = (p1[0] + p2[0]) // 2, (p1[1] + p2[1]) // 2
+                esize = 5 * map_zoom
+                pygame.draw.line(screen, (255, 50, 50), (mx-esize, my-esize), (mx+esize, my+esize), thickness)
+                pygame.draw.line(screen, (255, 50, 50), (mx+esize, my-esize), (mx-esize, my+esize), thickness)
+
+    # 3) Nodes (Räume)
+    node_radius = max(4, int(15 * map_zoom))
+    
+    for r_key, (rx, ry) in GRAPH_LAYOUT.items():
+        # if r_key not in visited_rooms and r_key != current_room: continue
+        
+        pos = get_pos(r_key)
+        
+        # Raumfarbe entscheidet Besuchs-Status
+        fill_color = (60, 120, 80) if r_key in visited_rooms else (40, 40, 40)
+        border_color = (100, 200, 150) if r_key in visited_rooms else (80, 80, 80)
+        
+        pygame.draw.circle(screen, fill_color, pos, node_radius)
+        pygame.draw.circle(screen, border_color, pos, node_radius, max(1, int(2*map_zoom)))
+        
+        # Highlight Player
+        if r_key == current_room:
+            # Pulsing ring
+            pulse = abs(math.sin(current_time * 0.005)) * 150 + 50
+            pygame.draw.circle(screen, (200, 255, 255), pos, int(node_radius * 1.5), max(1, int(2*map_zoom)))
+            # Player dot
+            pygame.draw.circle(screen, (255, 255, 255), pos, int(node_radius * 0.5))
+            
+        # Raumnamen anzeigen (nur wenn man nah herangezoomt hat, um Clutter zu vermeiden)
+        if map_zoom > 0.6 or r_key == current_room:
+            lbl = r_key.replace('_', ' ').title()
+            # Wenn current room, zeige fett / groß
+            fnt = font_terminal if r_key == current_room else font_tiny
+            col = (255, 255, 255) if r_key == current_room else (180, 180, 180)
+            
+            lbl_surf = fnt.render(lbl, True, col)
+            screen.blit(lbl_surf, (pos[0] - lbl_surf.get_width()//2, pos[1] + node_radius + 5))
+            
+    # UI Overlay Legend
+    title_text = "HIERARCHICAL CONTAINER SYSTEM MAP"
+    title_surf = font_terminal.render(title_text, True, (200, 255, 255))
+    screen.blit(title_surf, (30, 30))
+    pygame.draw.line(screen, (200, 255, 255), (30, 30 + title_surf.get_height() + 5), (30 + title_surf.get_width() + 50, 30 + title_surf.get_height() + 5), 2)
+    
+    # Legend Box
+    leg_x, leg_y = 30, screen.get_height() - 150
+    pygame.draw.rect(screen, (30, 30, 30, 200), (leg_x-10, leg_y-10, 250, 130))
+    pygame.draw.rect(screen, (100, 100, 100), (leg_x-10, leg_y-10, 250, 130), 1)
+    
+    screen.blit(font_tiny.render("LEGENDE:", True, (200, 200, 200)), (leg_x, leg_y))
+    
+    pygame.draw.line(screen, (100, 150, 200), (leg_x, leg_y+30), (leg_x+25, leg_y+30), 3)
+    screen.blit(font_tiny.render("Offen. Übergang", True, (150, 150, 150)), (leg_x+35, leg_y+20))
+    
+    pygame.draw.line(screen, (200, 50, 50), (leg_x, leg_y+55), (leg_x+25, leg_y+55), 3)
+    screen.blit(font_tiny.render("Gesperrter Übergang", True, (150, 150, 150)), (leg_x+35, leg_y+45))
+    
+    # Treppen strich-linie als legend
+    pygame.draw.line(screen, (200, 200, 50), (leg_x, leg_y+80), (leg_x+5, leg_y+80), 2)
+    pygame.draw.line(screen, (200, 200, 50), (leg_x+10, leg_y+80), (leg_x+15, leg_y+80), 2)
+    pygame.draw.line(screen, (200, 200, 50), (leg_x+20, leg_y+80), (leg_x+25, leg_y+80), 2)
+    screen.blit(font_tiny.render("Treppen / Etage", True, (150, 150, 150)), (leg_x+35, leg_y+70))
+    
+    # Controls Help Bottom Right
+    help_surf = font_tiny.render("[M/ESC] Zurück  [Drag/Pfeile] Pan  [+/-] Zoom", True, (150, 180, 200))
+    screen.blit(help_surf, (screen.get_width() - help_surf.get_width() - 30, screen.get_height() - 40))
 
 def process_command(command):
     """Verarbeitet Spielerbefehle"""
-    global current_room, prolog_shown, prolog_line_index, qte_active, qte_input, command_history, history_index
+    global current_room, prolog_shown, prolog_line_index, qte_active, qte_input, command_history, history_index, current_state, map_camera_x, map_camera_y, map_zoom, map_coords_dirty, map_cursor_room
     
     # Füge Command zur History hinzu (außer im QTE oder Prolog)
     if prolog_shown and not qte_active and command.strip():
@@ -1479,6 +2002,7 @@ def process_command(command):
         add_to_history("  echo [text] - Text ausgeben")
         add_to_history("  time - Aktuelle Zeit anzeigen")
         add_to_history("  whoami - Charakter-Info")
+        add_to_history("  karte, map - Weltkarte anzeigen")
         add_to_history("")
         add_to_history("System:")
         add_to_history("  neu - Neustart nach Tod")
@@ -1486,15 +2010,7 @@ def process_command(command):
     
     elif cmd.startswith('gehe '):
         direction = cmd[5:].strip()
-        room = rooms[current_room]
-        if direction in room['exits']:
-            current_room = room['exits'][direction]
-            add_to_history(f"Du gehst nach {direction.upper()}...")
-            add_to_history("")
-            describe_room()
-        else:
-            add_to_history("Du kannst nicht in diese Richtung gehen.")
-            add_to_history("")
+        move_direction(direction)
     
     # Direkte Richtungsbefehle: n, o, s, w
     elif cmd in ['n', 'norden', 'nord']:
@@ -1628,6 +2144,30 @@ def process_command(command):
     elif cmd in ['schaue', 'look', 'l']:
         describe_room()
     
+    elif cmd in ['karte', 'map']:
+        bldg_name, bldg_title, floor = get_room_context(current_room)
+        room_name = rooms.get(current_room, {}).get('name', current_room)
+        
+        add_to_history(">>> STANDORT INFO <<<")
+        add_to_history(f"Gebäude: {bldg_title}")
+        add_to_history(f"Etage:   {floor.capitalize()}")
+        add_to_history(f"Raum:    {room_name}")
+        add_to_history("")
+        add_to_history("Gefundene Ausgänge:")
+        
+        transitions = get_transitions_from(current_room)
+        if not transitions:
+            add_to_history("  (Keine sichtbaren Ausgänge)")
+        else:
+            for d, tgt, t in transitions:
+                tgt_name = rooms.get(tgt, {}).get('name', tgt)
+                t_type = t.get('type', 'passage')
+                lock_str = " [VERSCHLOSSEN]" if t.get('locked') else ""
+                icon = "🚪" if t_type in ['door', 'entrance'] else "🪜" if t_type == 'stairs' else "➡️"
+                add_to_history(f"  {d.capitalize():<12} {icon} {tgt_name} {lock_str}")
+        
+        add_to_history("")
+    
     elif cmd.startswith('ausrüsten '):
         weapon_key = cmd[10:].strip()
         equip_weapon(weapon_key)
@@ -1670,8 +2210,7 @@ def process_command(command):
                 rooms['start']['first_visit'] = True
                 rooms['start']['enemy'] = 'zombie'
                 rooms['start']['items'] = ['feuerlöscher', 'zeitung']
-                if 'norden' in rooms['start']['exits']:
-                    del rooms['start']['exits']['norden']
+                reset_transitions()
                 
                 start_game()
             else:
@@ -1738,8 +2277,7 @@ def process_command(command):
         rooms['start']['first_visit'] = True
         rooms['start']['enemy'] = 'zombie'
         rooms['start']['items'] = ['feuerlöscher', 'zeitung']
-        if 'norden' in rooms['start']['exits']:
-            del rooms['start']['exits']['norden']
+        reset_transitions()
         
         start_game()
     
@@ -1761,11 +2299,36 @@ def process_command(command):
         add_to_history("Standort: Bunker")
         add_to_history("")
     
+    elif cmd in ['karte', 'map']:
+        bldg_name, bldg_title, floor = get_room_context(current_room)
+        room_name = rooms.get(current_room, {}).get('name', current_room)
+        
+        add_to_history(">>> STANDORT INFO <<<")
+        add_to_history(f"Gebäude: {bldg_title}")
+        add_to_history(f"Etage:   {floor.capitalize()}")
+        add_to_history(f"Raum:    {room_name}")
+        add_to_history("")
+        add_to_history("Gefundene Ausgänge:")
+        
+        transitions = get_transitions_from(current_room)
+        if not transitions:
+            add_to_history("  (Keine sichtbaren Ausgänge)")
+        else:
+            for d, tgt, t in transitions:
+                tgt_name = rooms.get(tgt, {}).get('name', tgt)
+                t_type = t.get('type', 'passage')
+                lock_str = " [VERSCHLOSSEN]" if t.get('locked') else ""
+                icon = "🚪" if t_type in ['door', 'entrance'] else "🪜" if t_type == 'stairs' else "➡️"
+                add_to_history(f"  {d.capitalize():<12} {icon} {tgt_name} {lock_str}")
+        
+        add_to_history("")
+    
     elif cmd in ['schieben', 'schieb', 'regal schieben', 'schrank schieben', 'bücherregal schieben']:
         global bibliothek_4_schrank_geschoben
         if current_room == 'bibliothek_3':
             if not bibliothek_4_schrank_geschoben:
                 bibliothek_4_schrank_geschoben = True
+                unlock_transition('bib_3_4')
                 add_to_history("Du stemmst dich gegen das schwere Bücherregal...")
                 add_to_history("Mit aller Kraft schiebst du es zur Seite!")
                 add_to_history("Der Weg nach NORDEN ist jetzt frei.")
@@ -1782,6 +2345,7 @@ def process_command(command):
         if current_room == 'haus1' and 'axt' in player_inventory:
             if not haus1_tür_auf:
                 haus1_tür_auf = True
+                unlock_transition('haus1_tuer')
                 add_to_history("Du nimmst die Axt in die Hände")
                 add_to_history("Mit wucht schlägst du mit der Axt auf die Tür ein")
                 add_to_history("Man kann nun ins Haus rein")
@@ -2254,7 +2818,7 @@ def handle_melee_qte(success, data):
             
             # Raumspezifische Belohnungen
             if current_room == 'start':
-                room['exits']['norden'] = 'corridor'
+                unlock_transition('start_corridor')
                 room['items'].append('taschenlampe')
                 add_to_history("Der Bunker ist still. Du bist vorerst sicher.")
                 add_to_history("Im NORDEN siehst du nun einen Korridor.")
@@ -2286,8 +2850,7 @@ def handle_melee_qte(success, data):
                 rooms['start']['first_visit'] = True
                 rooms['start']['enemy'] = 'zombie'
                 rooms['start']['items'] = ['feuerlöscher', 'zeitung']
-                if 'norden' in rooms['start']['exits']:
-                    del rooms['start']['exits']['norden']
+                reset_transitions()
                 
                 start_game()
     else:
@@ -2316,8 +2879,7 @@ def handle_melee_qte(success, data):
             rooms['start']['first_visit'] = True
             rooms['start']['enemy'] = 'zombie'
             rooms['start']['items'] = ['feuerlöscher', 'zeitung']
-            if 'norden' in rooms['start']['exits']:
-                del rooms['start']['exits']['norden']
+            reset_transitions()
             
             start_game()
     
@@ -2564,60 +3126,77 @@ def draw_options(current_time):
     center_x = screen.get_width() // 2
     y = scale_y(180)
     spacing = scale(50)
-    
-    # === AUFLÖSUNG ===
-    res_label = font_option.render("Auflösung:", True, LIGHT_GRAY)
-    res_label_rect = res_label.get_rect(center=(center_x, y))
-    screen.blit(res_label, res_label_rect)
-    
-    y += spacing
-    
-    # Pfeile und aktuelle Auflösung
-    arrow_color = TERMINAL_GREEN if not fullscreen else GRAY
-    res_name = get_current_resolution_name()
     arrow_offset = scale(220)
     
-    # Linker Pfeil
-    left_arrow = font_option.render("<", True, arrow_color if current_resolution_index > 0 else GRAY)
-    left_rect = left_arrow.get_rect(center=(center_x - arrow_offset, y))
-    screen.blit(left_arrow, left_rect)
+    # Helper: Zeichne eine Option mit < > Pfeilen und Highlight
+    def draw_option_row(label, value, row_y, row_index, left_active=True, right_active=True):
+        is_selected = (row_index == options_selected_index)
+        text_color = TERMINAL_GREEN if is_selected else LIGHT_GRAY
+        arrow_color = TERMINAL_GREEN if is_selected else GRAY
+        
+        # Label
+        label_surf = font_option.render(label, True, text_color)
+        label_rect = label_surf.get_rect(center=(center_x, row_y))
+        screen.blit(label_surf, label_rect)
+        
+        row_y += spacing
+        
+        # Linker Pfeil
+        left_color = arrow_color if left_active else GRAY
+        left_arrow = font_option.render("<", True, left_color)
+        left_rect = left_arrow.get_rect(center=(center_x - arrow_offset, row_y))
+        screen.blit(left_arrow, left_rect)
+        
+        # Wert
+        value_surf = font_option.render(value, True, text_color)
+        value_rect = value_surf.get_rect(center=(center_x, row_y))
+        screen.blit(value_surf, value_rect)
+        
+        # Rechter Pfeil
+        right_color = arrow_color if right_active else GRAY
+        right_arrow = font_option.render(">", True, right_color)
+        right_rect = right_arrow.get_rect(center=(center_x + arrow_offset, row_y))
+        screen.blit(right_arrow, right_rect)
+        
+        # Selektions-Indikator (pulsierender Balken)
+        if is_selected:
+            pulse = int(40 + 20 * math.sin(current_time * 0.004))
+            indicator_surf = pygame.Surface((scale(500), spacing * 2 + scale(10)), pygame.SRCALPHA)
+            indicator_surf.fill((0, 255, 0, pulse))
+            indicator_rect = indicator_surf.get_rect(center=(center_x, row_y - spacing // 2 + scale(5)))
+            screen.blit(indicator_surf, indicator_rect)
+        
+        return row_y + spacing
     
-    # Auflösungstext
-    res_text = font_option.render(res_name, True, TERMINAL_GREEN)
-    res_rect = res_text.get_rect(center=(center_x, y))
-    screen.blit(res_text, res_rect)
-    
-    # Rechter Pfeil
-    right_arrow = font_option.render(">", True, arrow_color if current_resolution_index < len(RESOLUTION_PRESETS) - 1 else GRAY)
-    right_rect = right_arrow.get_rect(center=(center_x + arrow_offset, y))
-    screen.blit(right_arrow, right_rect)
+    # === AUFLÖSUNG (Index 0) ===
+    res_name = get_current_resolution_name()
+    can_left_res = not fullscreen and current_resolution_index > 0
+    can_right_res = not fullscreen and current_resolution_index < len(RESOLUTION_PRESETS) - 1
+    y = draw_option_row("Auflösung:", res_name, y, 0, can_left_res, can_right_res)
     
     # Fullscreen-Warnung
-    if fullscreen:
+    if fullscreen and options_selected_index == 0:
         warn_text = font_small_hint.render("(Deaktiviere Fullscreen mit F11 um Auflösung zu ändern)", True, HOVER_RED)
-        warn_rect = warn_text.get_rect(center=(center_x, y + scale(35)))
+        warn_rect = warn_text.get_rect(center=(center_x, y - scale(30)))
         screen.blit(warn_text, warn_rect)
     
-    # === MUSIK ===
-    y += scale(80)
-    music_text = f"Musik: {int(game_settings['music_volume'] * 100)}%"
-    music_surf = font_option.render(music_text, True, LIGHT_GRAY)
-    music_rect = music_surf.get_rect(center=(center_x, y))
-    screen.blit(music_surf, music_rect)
+    y += scale(20)
     
-    # === SFX ===
-    y += scale(60)
-    sfx_text = f"Effekte: {int(game_settings['sfx_volume'] * 100)}%"
-    sfx_surf = font_option.render(sfx_text, True, LIGHT_GRAY)
-    sfx_rect = sfx_surf.get_rect(center=(center_x, y))
-    screen.blit(sfx_surf, sfx_rect)
+    # === MUSIK (Index 1) ===
+    music_pct = int(game_settings['music_volume'] * 100)
+    music_val = f"{music_pct}%"
+    can_left_music = music_pct > 0
+    can_right_music = music_pct < 100
+    y = draw_option_row("Musik:", music_val, y, 1, can_left_music, can_right_music)
     
-    # === SCHWIERIGKEIT ===
-    y += scale(60)
-    diff_text = f"Schwierigkeit: {game_settings['difficulty']}"
-    diff_surf = font_option.render(diff_text, True, LIGHT_GRAY)
-    diff_rect = diff_surf.get_rect(center=(center_x, y))
-    screen.blit(diff_surf, diff_rect)
+    y += scale(20)
+    
+    # === SFX (Index 2) ===
+    sfx_pct = int(game_settings['sfx_volume'] * 100)
+    sfx_val = f"{sfx_pct}%"
+    can_left_sfx = sfx_pct > 0
+    can_right_sfx = sfx_pct < 100
+    y = draw_option_row("Effekte:", sfx_val, y, 2, can_left_sfx, can_right_sfx)
     
     # Zurück-Button (Position anpassen)
     options_buttons[0].pos = (center_x, screen.get_height() - scale(100))
@@ -2629,7 +3208,7 @@ def draw_options(current_time):
     
     # Hinweise
     hints = [
-        "← / → : Auflösung ändern",
+        "↑ / ↓ : Option wählen  |  ← / → : Wert ändern",
         "F11: Vollbild umschalten"
     ]
     hint_y = screen.get_height() - scale(50)
@@ -2707,7 +3286,7 @@ options_buttons = [
 ]
 
 def main():
-    global current_state, input_text, backspace_held, last_backspace_time, history_index, scroll_offset, max_scroll, menu_selected_index, cursor_position
+    global current_state, input_text, backspace_held, last_backspace_time, history_index, scroll_offset, max_scroll, menu_selected_index, cursor_position, map_camera_x, map_camera_y, map_zoom, map_cursor_room, map_dragging, map_drag_last_pos, options_selected_index
     global delete_held, last_delete_time, left_held, last_left_time, right_held, last_right_time
     global enter_held, last_enter_time
     
@@ -2762,11 +3341,14 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             
-            # Mausrad für Scrollen
-            if event.type == pygame.MOUSEWHEEL and current_state == GAME and prolog_shown:
-                scroll_offset += event.y * 3  # Invertiert: nach oben scrollen = höherer offset
-                # Begrenze Scroll
-                scroll_offset = max(0, min(scroll_offset, max_scroll))
+            # Mausrad für Scrollen (GAME) / Zoom (MAP)
+            if event.type == pygame.MOUSEWHEEL:
+                if current_state == GAME and prolog_shown:
+                    scroll_offset += event.y * 3  # Invertiert: nach oben scrollen = höherer offset
+                    # Begrenze Scroll
+                    scroll_offset = max(0, min(scroll_offset, max_scroll))
+                elif current_state == MAP:
+                    map_zoom = max(0.3, min(3.0, map_zoom + event.y * 0.12))
             
             if event.type == pygame.KEYDOWN:
                 # F11 für Fullscreen
@@ -2786,6 +3368,28 @@ def main():
                     else:
                         current_state = MENU
                         _start_menu_music()
+                        
+                # Map-Steuerung (Graph View Panning)
+                elif current_state == MAP:
+                    if event.key == pygame.K_UP:
+                        map_camera_y -= 50 / map_zoom
+                    elif event.key == pygame.K_DOWN:
+                        map_camera_y += 50 / map_zoom
+                    elif event.key == pygame.K_LEFT:
+                        map_camera_x -= 50 / map_zoom
+                    elif event.key == pygame.K_RIGHT:
+                        map_camera_x += 50 / map_zoom
+                    elif event.key in [pygame.K_PLUS, pygame.K_KP_PLUS, pygame.K_EQUALS]:
+                        map_zoom = min(3.0, map_zoom + 0.15)
+                    elif event.key in [pygame.K_MINUS, pygame.K_KP_MINUS]:
+                        map_zoom = max(0.3, map_zoom - 0.15)
+                    elif event.key == pygame.K_m or event.key == pygame.K_ESCAPE:
+                        current_state = GAME
+                        map_dragging = False
+                    elif event.key == pygame.K_r:
+                        map_camera_x = 0
+                        map_camera_y = 0
+                        map_zoom = 1.0
                 
                 # Space im Intro
                 elif event.key == pygame.K_SPACE and current_state == INTRO:
@@ -2801,12 +3405,28 @@ def main():
                     elif event.key == pygame.K_RETURN:
                         menu_buttons[menu_selected_index].action()
                 
-                # Pfeiltasten im Options-Menü für Auflösung
+                # Pfeiltasten im Options-Menü
                 elif current_state == OPTIONS:
-                    if event.key == pygame.K_LEFT:
-                        change_resolution(-1)
+                    if event.key == pygame.K_UP:
+                        options_selected_index = (options_selected_index - 1) % 3
+                    elif event.key == pygame.K_DOWN:
+                        options_selected_index = (options_selected_index + 1) % 3
+                    elif event.key == pygame.K_LEFT:
+                        if options_selected_index == 0:
+                            change_resolution(-1)
+                        elif options_selected_index == 1:
+                            game_settings['music_volume'] = max(0.0, round(game_settings['music_volume'] - 0.05, 2))
+                            pygame.mixer.music.set_volume(game_settings['music_volume'])
+                        elif options_selected_index == 2:
+                            game_settings['sfx_volume'] = max(0.0, round(game_settings['sfx_volume'] - 0.05, 2))
                     elif event.key == pygame.K_RIGHT:
-                        change_resolution(1)
+                        if options_selected_index == 0:
+                            change_resolution(1)
+                        elif options_selected_index == 1:
+                            game_settings['music_volume'] = min(1.0, round(game_settings['music_volume'] + 0.05, 2))
+                            pygame.mixer.music.set_volume(game_settings['music_volume'])
+                        elif options_selected_index == 2:
+                            game_settings['sfx_volume'] = min(1.0, round(game_settings['sfx_volume'] + 0.05, 2))
                 
                 # Text-Eingabe im Spiel
                 elif current_state == GAME:
@@ -2814,6 +3434,13 @@ def main():
                         if not prolog_shown:
                             # Im Prolog: Enter zeigt mehr Text
                             process_command("")
+                        elif input_text.strip().lower() in ["karte", "map"] and not prolog_shown:
+                            current_state = MAP
+                            map_camera_x = 0
+                            map_camera_y = 0
+                            map_dragging = False
+                            input_text = ""
+                            cursor_position = 0
                         elif input_text.strip():
                             # Im Spiel: verarbeite Befehl
                             add_to_history(f"> {input_text}")
@@ -2926,12 +3553,27 @@ def main():
             
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
-                    if current_state == MENU:
+                    if current_state == MAP:
+                        map_dragging = True
+                        map_drag_last_pos = event.pos
+                    elif current_state == MENU:
                         for button in menu_buttons:
                             button.click()
                     elif current_state == OPTIONS:
                         for button in options_buttons:
                             button.click()
+                            
+            if event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 1:
+                    map_dragging = False
+                    
+            if event.type == pygame.MOUSEMOTION:
+                if current_state == MAP and map_dragging:
+                    dx = event.pos[0] - map_drag_last_pos[0]
+                    dy = event.pos[1] - map_drag_last_pos[1]
+                    map_camera_x -= dx / map_zoom
+                    map_camera_y -= dy / map_zoom
+                    map_drag_last_pos = event.pos
         
         # State-basiertes Rendering
         if current_state == INTRO:
@@ -2950,6 +3592,9 @@ def main():
         elif current_state == GAME:
             update_typewriter()
             draw_game(current_time)
+            
+        elif current_state == MAP:
+            draw_map(current_time)
         
         pygame.display.flip()
         clock.tick(FPS)
