@@ -102,6 +102,17 @@ block_move_offset = (0, 0)     # Offset beim Drag-Start
 block_naming = False           # True wenn gerade ein Block-Name eingegeben wird
 block_name_input = ""          # Aktueller Name-Input
 
+# Node Editing (MapEditor integration in MAP view)
+selected_node_key = None       # room_key of selected node (for rename/delete)
+node_naming = False            # True wenn gerade ein Node-Name eingegeben wird
+node_name_input = ""           # Aktueller Name-Input für Node-Umbenennung
+# Context Menu
+context_menu_open = False      # True wenn ein Kontextmenü offen ist
+context_menu_pos = (0, 0)      # Bildschirm-Position des Menüs
+context_menu_node = None       # room_key für den das Menü geöffnet wurde
+context_menu_edge = None       # (from_room, to_room) tuple if an edge was clicked
+context_menu_items = []        # List of (label, action_key) tuples
+
 visited_rooms = set()  # Besuchte Räume (zB. für Resets/Stats)
 
 # Menü-Navigation
@@ -206,6 +217,8 @@ view_mode = 'verbose'           # 'verbose', 'brief', 'superbrief'
 visited_rooms_desc = set()      # Bereits beschriebene Räume (für brief mode)
 game_score = 0                  # Zork-style Punkte
 game_moves = 0                  # Zähler für Spielerzüge
+scored_items = set()            # Items die bereits Punkte gegeben haben
+scored_kills = set()            # Räume in denen der erste Kill bereits gezählt wurde
 game_start_ticks = 0            # pygame.time.get_ticks() beim Spielstart
 # SAVE_FILE importiert aus config.py
 
@@ -2182,6 +2195,43 @@ def get_node_at_screen_pos(mx, my, unit, cx, cy):
             return rk
     return None
 
+def get_transition_at_screen_pos(mx, my, unit, cx, cy):
+    """Return (from_room, to_room) if a transition line is clicked, or None.
+       Uses point-to-line segment distance."""
+    import math
+    hit_dist = max(5, int(10 * map_zoom))
+    
+    for t in TRANSITIONS:
+        r_from = t.get('from')
+        r_to = t.get('to')
+        if not r_from or not r_to:
+            continue
+            
+        p1x, p1y = GRAPH_LAYOUT.get(r_from, (0, 0))
+        p2x, p2y = GRAPH_LAYOUT.get(r_to, (0, 0))
+        
+        nx1 = cx + p1x * unit
+        ny1 = cy + p1y * unit
+        nx2 = cx + p2x * unit
+        ny2 = cy + p2y * unit
+        
+        # Point to line segment distance
+        line_len_sq = (nx2 - nx1)**2 + (ny2 - ny1)**2
+        if line_len_sq == 0:
+            continue
+            
+        # Projection of point onto line (parameter t from 0 to 1)
+        t_param = max(0, min(1, ((mx - nx1) * (nx2 - nx1) + (my - ny1) * (ny2 - ny1)) / line_len_sq))
+        
+        proj_x = nx1 + t_param * (nx2 - nx1)
+        proj_y = ny1 + t_param * (ny2 - ny1)
+        
+        dist_sq = (mx - proj_x)**2 + (my - proj_y)**2
+        if dist_sq <= hit_dist**2:
+            return (r_from, r_to)
+            
+    return None
+
 def screen_to_graph(sx, sy, unit, cx, cy):
     """Convert screen pixel coords to GRAPH_LAYOUT coords."""
     gx = (sx - cx) / unit
@@ -2339,6 +2389,9 @@ def draw_map(current_time):
         if r_key == node_drag_key:
             border_color = (255, 200, 50)
             fill_color = (100, 80, 30)
+        elif r_key == selected_node_key:
+            border_color = (255, 255, 100)
+            fill_color = (80, 80, 40)
         elif r_key == node_hovered_key:
             border_color = (200, 200, 100)
         
@@ -2354,11 +2407,17 @@ def draw_map(current_time):
             pygame.draw.circle(screen, (255, 255, 255), pos, int(node_radius * 0.5))
             
         # Raumnamen anzeigen (nur wenn man nah herangezoomt hat, um Clutter zu vermeiden)
-        if map_zoom > 0.6 or r_key == current_room:
-            lbl = r_key.replace('_', ' ').title()
+        if map_zoom > 0.6 or r_key == current_room or r_key == selected_node_key:
+            if node_naming and r_key == selected_node_key:
+                lbl = node_name_input + '█'
+            else:
+                lbl = r_key.replace('_', ' ').title()
+                
             # Wenn current room, zeige fett / groß
             fnt = font_terminal if r_key == current_room else font_tiny
             col = (255, 255, 255) if r_key == current_room else (180, 180, 180)
+            if r_key == selected_node_key:
+                col = (255, 255, 100)
             
             lbl_surf = fnt.render(lbl, True, col)
             screen.blit(lbl_surf, (pos[0] - lbl_surf.get_width()//2, pos[1] + node_radius + 5))
@@ -2398,11 +2457,37 @@ def draw_map(current_time):
         save_surf = font_terminal.render("✔ Layout gespeichert!", True, (100, 255, 100))
         screen.blit(save_surf, (screen.get_width()//2 - save_surf.get_width()//2, 80))
 
+    # Context Menu
+    if context_menu_open:
+        cm_x, cm_y = context_menu_pos
+        cm_w, cm_h = 180, len(context_menu_items) * 30
+        pygame.draw.rect(screen, (40, 40, 50), (cm_x, cm_y, cm_w, cm_h))
+        pygame.draw.rect(screen, (200, 200, 200), (cm_x, cm_y, cm_w, cm_h), 2)
+        for i, (label, action) in enumerate(context_menu_items):
+            # Highlight on hover
+            mx, my = pygame.mouse.get_pos()
+            item_rect = pygame.Rect(cm_x, cm_y + i * 30, cm_w, 30)
+            if item_rect.collidepoint(mx, my):
+                pygame.draw.rect(screen, (80, 80, 100), item_rect)
+            
+            lbl_surf = font_tiny.render(label, True, (255, 255, 255))
+            screen.blit(lbl_surf, (cm_x + 10, cm_y + i * 30 + 5))
+
 # === CLASSIC MECHANICS: Helper-Funktionen ===
 
-def add_score(action_key, amount=None):
-    """Zork-style Punkte vergeben."""
+def add_score(action_key, amount=None, context=None):
+    """Zork-style Punkte vergeben. context = item_key oder room_key für Dedup."""
     global game_score
+    # Dedup: jedes Item gibt nur einmal Punkte
+    if action_key == 'item_pickup' and context:
+        if context in scored_items:
+            return
+        scored_items.add(context)
+    # Dedup: erster Zombie-Kill pro Raum gibt Punkte, Respawns nicht
+    if action_key == 'zombie_kill' and context:
+        if context in scored_kills:
+            return
+        scored_kills.add(context)
     pts = amount if amount is not None else SCORE_VALUES.get(action_key, 0)
     if pts > 0:
         game_score += pts
@@ -2450,6 +2535,8 @@ def save_game():
         'bibliothek_4_schrank_geschoben': bibliothek_4_schrank_geschoben,
         'haus1_tür_auf': haus1_tür_auf,
         'item_charges': {ik: idef.charge for ik, idef in ITEM_DEFS.items() if idef.max_charge >= 0},
+        'scored_items': list(scored_items),
+        'scored_kills': list(scored_kills),
     }
     try:
         with open(SAVE_FILE, 'w', encoding='utf-8') as f:
@@ -2466,6 +2553,7 @@ def restore_game():
     global current_room, player_inventory, game_score, game_moves, view_mode
     global visited_rooms, visited_rooms_desc, game_start_ticks
     global bibliothek_4_schrank_geschoben, haus1_tür_auf
+    global scored_items, scored_kills
     try:
         with open(SAVE_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -2506,6 +2594,8 @@ def restore_game():
             ITEM_DEFS[ik].charge = charge_val
     elapsed = data.get('elapsed_ms', 0)
     game_start_ticks = pygame.time.get_ticks() - elapsed
+    scored_items = set(data.get('scored_items', []))
+    scored_kills = set(data.get('scored_kills', []))
     game_history.clear()
     add_to_history("Spielstand geladen.")
     add_to_history("")
@@ -2579,7 +2669,7 @@ def handle_put_in(item_key, container_key):
             room['items'].remove(item_key)
             player_inventory.append(item_key)
             add_to_history(f"(Zuerst genommen: {get_item_name(item_key)})")
-            add_score('item_pickup')
+            add_score('item_pickup', context=item_key)
         else:
             add_to_history(f"Du hast kein '{get_item_name(item_key)}'.")
             add_to_history("")
@@ -2617,7 +2707,7 @@ def handle_take_from(item_key, container_key):
     idef_c.contents.remove(item_key)
     player_inventory.append(item_key)
     add_to_history(f"Du nimmst {get_item_name(item_key)} aus {get_item_name(container_key)}.")
-    add_score('item_pickup')
+    add_score('item_pickup', context=item_key)
     add_to_history("")
 
 def handle_look_in(container_key):
@@ -2724,6 +2814,7 @@ def process_command(command):
     if command_handlers.handle_combat_commands(cmd): return
     if command_handlers.handle_container_commands(cmd): return
     if command_handlers.handle_interaction_commands(cmd): return
+    if command_handlers.handle_map_editor(cmd): return
     if command_handlers.handle_system_commands(cmd): return
     command_handlers.handle_unknown_command(cmd, words)
 
@@ -2824,7 +2915,7 @@ def ranged_attack(target):
             room['enemy'] = None
             player_stats['in_combat'] = False
             zombie_kill_times[current_room] = time.time()  # Respawn-Cooldown starten
-            add_score('zombie_kill')
+            add_score('zombie_kill', context=current_room)
         else:
             # Gegner-Gegenangriff
             enemy_counterattack(enemy)
@@ -3214,7 +3305,7 @@ def handle_melee_qte(success, data):
             room['enemy'] = None
             player_stats['in_combat'] = False
             zombie_kill_times[current_room] = time.time()  # Respawn-Cooldown starten
-            add_score('zombie_kill')
+            add_score('zombie_kill', context=current_room)
             
             # Raumspezifische Belohnungen
             if current_room == 'start':
@@ -3370,26 +3461,33 @@ def draw_game(current_time):
     font_text = get_scaled_font(30)
     font_hint = get_scaled_font(25)
     
-    # Terminal-Header
-    if qte_active:
-        header_text = "=== QTE AKTIV === [Drücke die richtigen Tasten!]"
-        header_color = (255, 40, 40)
-    elif prolog_shown:
-        if scroll_offset > 0:
-            header_text = f"=== DEAD WORLD === [Gescrollt: {scroll_offset} Zeilen] [Ende: Zurück] [Mausrad/↑↓/PgUp/PgDn]"
-        else:
-            header_text = "=== DEAD WORLD TERMINAL === [F11: Fullscreen] [ESC: Menü] [↑↓: History]"
-        header_color = TERMINAL_GREEN
-    else:
-        header_text = "=== DEAD WORLD - PROLOG === [ENTER: Weiter]"
-        header_color = TERMINAL_GREEN
-    
-    header_surf = font_header.render(header_text, True, header_color)
-    screen.blit(header_surf, (padding, header_y))
-    
-    # Gradient-Separator (simple Linie statt per-pixel loop)
+    # --- Minimalist Top Bar ---
     w = screen.get_width()
-    pygame.draw.line(screen, TERMINAL_GREEN, (padding, separator_y), (w - padding, separator_y), 1)
+    bar_height = scale(35)
+    bar_pad = scale(10)
+    pygame.draw.rect(screen, (0, 0, 0), (0, 0, w, bar_height))
+
+    # Sans-serif font for the bar (cached to avoid per-frame allocation)
+    _bar_font_size = scale(18)
+    if not hasattr(draw_game, '_bar_font_cache') or draw_game._bar_font_cache[0] != _bar_font_size:
+        try:
+            draw_game._bar_font_cache = (_bar_font_size, pygame.font.SysFont("arial", _bar_font_size))
+        except Exception:
+            draw_game._bar_font_cache = (_bar_font_size, pygame.font.Font(None, _bar_font_size))
+    bar_font = draw_game._bar_font_cache[1]
+    bar_text_color = (255, 255, 255)
+
+    # Left: current location name
+    location_name = rooms.get(current_room, {}).get('name', current_room)
+    loc_surf = bar_font.render(location_name, True, bar_text_color)
+    loc_y = (bar_height - loc_surf.get_height()) // 2
+    screen.blit(loc_surf, (bar_pad, loc_y))
+
+    # Right: Score and Moves
+    status_text = f"Score: {game_score}  |  Moves: {game_moves}"
+    status_surf = bar_font.render(status_text, True, bar_text_color)
+    status_y = (bar_height - status_surf.get_height()) // 2
+    screen.blit(status_surf, (w - status_surf.get_width() - bar_pad, status_y))
     
     # QTE Timer anzeigen
     qte_offset = 0
@@ -3402,7 +3500,7 @@ def draw_game(current_time):
         qte_offset = scale(30)
     
     # Game History (scrollendes Text-Fenster mit vollständigem Verlauf)
-    y_start = separator_y + scale(10) + qte_offset
+    y_start = bar_height + scale(5) + qte_offset
     y_offset = y_start
     
     # Berechne verfügbare Höhe für Text
@@ -3704,6 +3802,8 @@ def main():
     global node_dragging, node_drag_key, node_hovered_key
     global building_dragging, building_drag_key
     global selected_block_idx, block_resizing, block_resize_handle, block_moving, custom_blocks
+    global selected_node_key, node_naming, node_name_input
+    global context_menu_open, context_menu_pos, context_menu_node, context_menu_items
     
     running = True
     start_time = pygame.time.get_ticks()

@@ -111,8 +111,14 @@ _DIRECTION_MAP = {
 
 
 def handle_movement(cmd):
+    if cmd == 'gehe':
+        _h("Wohin willst du gehen?")
+        _h("")
+        return True
+
     if cmd.startswith('gehe '):
-        direction = cmd[5:].strip()
+        raw_dir = cmd[5:].strip()
+        direction = _DIRECTION_MAP.get(raw_dir, raw_dir)
         _game.move_direction(direction)
         return True
 
@@ -160,7 +166,7 @@ def handle_item_commands(cmd):
                 room['items'].remove(item)
                 _game.player_inventory.append(item)
                 _h(f"Du nimmst {_game.get_item_name(item)}.")
-                _game.add_score('item_pickup')
+                _game.add_score('item_pickup', context=item)
                 enc = _game.get_encumbrance_description()
                 if enc:
                     _h(enc)
@@ -405,6 +411,10 @@ def handle_system_commands(cmd):
 
     if cmd == 'neu':
         _reset_player()
+        _game.scored_items.clear()
+        _game.scored_kills.clear()
+        _game.game_score = 0
+        _game.game_moves = 0
         for idef in _game.ITEM_DEFS.values():
             if idef.max_charge >= 0:
                 idef.charge = idef.max_charge
@@ -633,6 +643,201 @@ def handle_look_map(cmd):
         return True
 
     return False
+
+
+# ========================
+# MAP EDITOR COMMANDS (dev tools)
+# ========================
+_map_editor = None
+
+def _get_editor():
+    """Lazy-init the MapEditor singleton."""
+    global _map_editor
+    if _map_editor is None:
+        from map_editor import MapEditor
+        _map_editor = MapEditor(_game.rooms, MAP_LAYOUT_FILE)
+    return _map_editor
+
+
+def handle_map_editor(cmd):
+    """Handles: mapedit rename/remove/exit/list/exits/coords/help"""
+    if not cmd.startswith('mapedit'):
+        return False
+
+    editor = _get_editor()
+    parts = cmd.split()
+
+    # --- mapedit (no args) or mapedit help ---
+    if len(parts) == 1 or (len(parts) == 2 and parts[1] == 'help'):
+        _h("═══ MAP EDITOR ═══")
+        _h("")
+        _h("Befehle:")
+        _h("  mapedit rename [alt] [neu]    — Raum umbenennen")
+        _h("  mapedit remove [raum]         — Raum löschen")
+        _h("  mapedit exit [raum] [richtung] [ziel]")
+        _h("                                — Ausgang hinzufügen")
+        _h("                                  (erstellt Zielraum automatisch)")
+        _h("  mapedit rmexit [raum] [richtung]")
+        _h("                                — Ausgang entfernen")
+        _h("  mapedit list                  — Alle Räume auflisten")
+        _h("  mapedit exits [raum]          — Ausgänge eines Raums zeigen")
+        _h("  mapedit coords [raum] [x] [y] — Koordinaten setzen")
+        _h("  mapedit here                  — Info zum aktuellen Raum")
+        _h("")
+        return True
+
+    sub = parts[1] if len(parts) > 1 else ''
+
+    # --- mapedit rename old_name new_name ---
+    if sub == 'rename':
+        if len(parts) != 4:
+            _h("Syntax: mapedit rename [alter_name] [neuer_name]")
+            _h("")
+            return True
+        old_name, new_name = parts[2], parts[3]
+        ok = editor.rename_node(old_name, new_name)
+        if ok:
+            _h(f"Raum '{old_name}' → '{new_name}' umbenannt.")
+            # If the player is in the renamed room, update current_room
+            if _game.current_room == old_name:
+                _game.current_room = new_name
+                _h("(Dein aktueller Standort wurde aktualisiert.)")
+        else:
+            if old_name not in _game.rooms:
+                _h(f"Fehler: Raum '{old_name}' existiert nicht.")
+            else:
+                _h(f"Fehler: Raum '{new_name}' existiert bereits.")
+        _h("")
+        return True
+
+    # --- mapedit remove room_name ---
+    if sub == 'remove':
+        if len(parts) != 3:
+            _h("Syntax: mapedit remove [raum_name]")
+            _h("")
+            return True
+        name = parts[2]
+        if name == _game.current_room:
+            _h("Fehler: Du kannst den Raum nicht löschen, in dem du dich befindest!")
+            _h("")
+            return True
+        ok = editor.remove_node(name)
+        if ok:
+            _h(f"Raum '{name}' gelöscht und alle Referenzen entfernt.")
+        else:
+            _h(f"Fehler: Raum '{name}' existiert nicht.")
+        _h("")
+        return True
+
+    # --- mapedit exit from_room direction to_room ---
+    if sub == 'exit':
+        if len(parts) != 5:
+            _h("Syntax: mapedit exit [von_raum] [richtung] [nach_raum]")
+            _h("")
+            return True
+        from_room, direction, to_room = parts[2], parts[3], parts[4]
+        ok = editor.add_exit(from_room, direction, to_room)
+        if ok:
+            created = to_room not in _game.rooms or to_room == to_room  # auto-created check happened inside
+            _h(f"Ausgang: {from_room} → [{direction}] → {to_room} verbunden.")
+        else:
+            _h(f"Fehler: Quellraum '{from_room}' existiert nicht.")
+        _h("")
+        return True
+
+    # --- mapedit rmexit from_room direction ---
+    if sub == 'rmexit':
+        if len(parts) != 4:
+            _h("Syntax: mapedit rmexit [raum] [richtung]")
+            _h("")
+            return True
+        from_room, direction = parts[2], parts[3]
+        ok = editor.remove_exit(from_room, direction)
+        if ok:
+            _h(f"Ausgang '{direction}' aus '{from_room}' entfernt.")
+        else:
+            if from_room not in _game.rooms:
+                _h(f"Fehler: Raum '{from_room}' existiert nicht.")
+            else:
+                _h(f"Fehler: Kein Ausgang '{direction}' in '{from_room}'.")
+        _h("")
+        return True
+
+    # --- mapedit list ---
+    if sub == 'list':
+        room_keys = editor.list_rooms()
+        _h(f"═══ ALLE RÄUME ({len(room_keys)}) ═══")
+        for i, key in enumerate(room_keys):
+            name = _game.rooms[key].get('name', key)
+            marker = " ◄" if key == _game.current_room else ""
+            _h(f"  {key} ({name}){marker}")
+        _h("")
+        return True
+
+    # --- mapedit exits room_name ---
+    if sub == 'exits':
+        room_name = parts[2] if len(parts) >= 3 else _game.current_room
+        exits = editor.list_exits(room_name)
+        if room_name not in _game.rooms:
+            _h(f"Fehler: Raum '{room_name}' existiert nicht.")
+        elif not exits:
+            _h(f"Raum '{room_name}' hat keine Ausgänge.")
+        else:
+            _h(f"═══ AUSGÄNGE: {room_name} ═══")
+            for d, t in exits.items():
+                _h(f"  {d} → {t}")
+        _h("")
+        return True
+
+    # --- mapedit coords room_name x y ---
+    if sub == 'coords':
+        if len(parts) == 3:
+            # Show coords
+            name = parts[2]
+            coords = editor.get_node_coords(name)
+            if coords:
+                _h(f"Koordinaten von '{name}': [{coords[0]:.2f}, {coords[1]:.2f}]")
+            else:
+                _h(f"Keine Koordinaten für '{name}' gefunden.")
+            _h("")
+            return True
+        if len(parts) == 5:
+            # Set coords
+            name = parts[2]
+            try:
+                x, y = float(parts[3]), float(parts[4])
+            except ValueError:
+                _h("Fehler: x und y müssen Zahlen sein.")
+                _h("")
+                return True
+            editor.set_node_coords(name, x, y)
+            _h(f"Koordinaten von '{name}' auf [{x:.2f}, {y:.2f}] gesetzt.")
+            _h("")
+            return True
+        _h("Syntax: mapedit coords [raum] oder mapedit coords [raum] [x] [y]")
+        _h("")
+        return True
+
+    # --- mapedit here ---
+    if sub == 'here':
+        room_key = _game.current_room
+        room = _game.rooms.get(room_key, {})
+        _h(f"═══ RAUM-INFO: {room_key} ═══")
+        _h(f"  Name: {room.get('name', '?')}")
+        _h(f"  Beschreibung: {room.get('description', '(leer)')[:80]}...")
+        exits = room.get('exits', {})
+        _h(f"  Ausgänge: {', '.join(f'{d}→{t}' for d, t in exits.items()) if exits else 'keine'}")
+        items = room.get('items', [])
+        _h(f"  Items: {', '.join(items) if items else 'keine'}")
+        coords = editor.get_node_coords(room_key)
+        if coords:
+            _h(f"  Koordinaten: [{coords[0]:.2f}, {coords[1]:.2f}]")
+        _h("")
+        return True
+
+    _h(f"Unbekannter mapedit-Befehl: '{sub}'. Tippe 'mapedit help' für Hilfe.")
+    _h("")
+    return True
 
 
 # ========================

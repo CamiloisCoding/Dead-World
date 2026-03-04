@@ -141,7 +141,7 @@ KNOWN_VERBS = {
     'verbose', 'ausführl', 'brief', 'kurz', 'superbrie', 'superkur', 'superkurz',
     'info', 'q', 'quit', 'beenden', 'save', 'speicher', 'speichern',
     'restore', 'laden', 'score', 'punkte', 'zeit', 'diagnose', 'd',
-    'schieben', 'schieb', 'brech', 'zerhacke', '?',
+    'schieben', 'schieb', 'brech', 'zerhacke', '?', 'mapedit',
 }
 
 VERBS_NEED_OBJECT = {
