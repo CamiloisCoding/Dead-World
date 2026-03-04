@@ -41,7 +41,7 @@ def stop_zombie_sounds():
         _current_zombie_sound = None
 
 # Konstanten
-WIDTH, HEIGHT = 1200, 700
+WIDTH, HEIGHT = 1900, 1000
 FPS = 60
 
 # Resolution Presets (Name, Breite, Höhe)
@@ -52,7 +52,7 @@ RESOLUTION_PRESETS = [
     ('Hoch', 1600, 900),
     ('Sehr Hoch', 1920, 1080)
 ]
-current_resolution_index = 2  # Standard: Mittel (1280x720)
+current_resolution_index = 2  # Standard: Sehr Hoch (1920x1080)
 # Farben — Atmospheric Post-Apocalyptic Palette
 BLACK = (8, 6, 8)
 BLOOD_RED = (170, 20, 20)
@@ -161,6 +161,28 @@ map_cursor_room = None
 map_dragging = False
 map_drag_last_pos = (0, 0)
 
+# Node-Dragging (Customizable Map)
+node_dragging = False          # True wenn ein Node gerade gezogen wird
+node_drag_key = None           # room_key des gezogenen Nodes
+node_hovered_key = None        # room_key des Nodes unter der Maus
+MAP_LAYOUT_FILE = os.path.join(os.path.dirname(__file__), 'custom_map_layout.json')
+
+# Building-Dragging (Block dragging)
+building_dragging = False      # True wenn ein ganzes Gebäude gezogen wird
+building_drag_key = None       # building_key des gezogenen Gebäudes
+building_drag_start = (0, 0)   # Graph-Koordinaten beim Start des Drags
+building_drag_offsets = {}     # Relative Offsets der Nodes zum Drag-Startpunkt
+
+# Custom Blocks (User-created annotation boxes)
+custom_blocks = []             # List of {name, gx, gy, gw, gh, color}
+selected_block_idx = None      # Index of selected custom block
+block_resizing = False         # True wenn Block gerade resized wird
+block_resize_handle = None     # 'tl','tr','bl','br','t','b','l','r'
+block_moving = False           # True wenn Block gerade verschoben wird
+block_move_offset = (0, 0)     # Offset beim Drag-Start
+block_naming = False           # True wenn gerade ein Block-Name eingegeben wird
+block_name_input = ""          # Aktueller Name-Input
+
 visited_rooms = set()  # Besuchte Räume (zB. für Resets/Stats)
 
 # Menü-Navigation
@@ -169,8 +191,8 @@ options_selected_index = 0  # 0=Auflösung, 1=Musik, 2=Effekte
 
 # Game Settings
 game_settings = {
-    'music_volume': 0.5,
-    'sfx_volume': 0.7,
+    'music_volume': 0.05,
+    'sfx_volume': 0.05,
     'difficulty': 'Normal',
     'resolution': 2  # Index in RESOLUTION_PRESETS
 }
@@ -466,25 +488,25 @@ rooms = {
     },
     'suedlich_haus': {#Stadt
         'name': 'Südliche Straße',
-        'description': 'Du stehst mitten in der Straße, komplett leergeräumt, nur Kaputte Autos so wie getrocknetes Blut. Im WESTEN geht es weiter. Im SÜDEN steht Haus 1. Im OSTEN geht es weiter. NORDEN führt zurück zu deinem Versteck.',
-        'exits': {'norden': 'vordertuer', 'westen': 'westlich_haus_gabelung', 'süden': 'haus1', 'osten': 'oestlich_weggabelung'},
+        'description': 'Eine verwüstete Straße. Kaputte Autos und getrocknetes Blut überall. Im NORDEN ist dein Versteck. Nach WESTEN führt eine Weggabelung. Im SÜDEN steht ein Haus. Nach OSTEN geht die Straße weiter.',
+        'exits': {'norden': 'vordertuer', 'westen': 'westliche_haus_gabelung', 'süden': 'haus1', 'osten': 'oestlich_weggabelung'},
         'items': [],
         'in_development': False,
         'spawn_chance': True,
         'zombie_spawn': False
     
     },
-    'westlich_haus_gabelung': {#Stadt
-        'name': 'Westliche weggabelung',
-        'description': 'Du stehst an einer Weggabelung, richtung Süden gehts zum Krankenhaus und nach Norden sieht man nur noch ne weitere weggabelung.',
+    'westliche_haus_gabelung': {#Stadt
+        'name': 'Westliche Weggabelung',
+        'description': 'Eine Weggabelung. Verrostete Straßenschilder zeigen in alle Richtungen. Im OSTEN liegt die südliche Straße. Nach NORDEN geht es zur nordwestlichen Weggabelung. Im SÜDEN führt die Straße Richtung Krankenhaus.',
         'exits': {'osten': 'suedlich_haus', 'norden': 'nord_westliche_weggabelung', 'süden': 'krankenhaus_straße'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_straße': {#Krankenhaus
         'name': 'Krankenhaus Straße',
-        'description': 'Du stehst in mitten der straße, westlich von dir steht das Krankenhauses.',
-        'exits': {'norden': 'westlich_haus_gabelung', 'westen': 'krankenhaus_eingang'},
+        'description': 'Du stehst auf der Straße vor dem Krankenhaus. Im NORDEN führt die Straße zur westlichen Weggabelung. Im WESTEN ist der Eingang zum Krankenhaus. Nach SÜDEN geht es zur Home Depot Weggabelung Nord Ost.',
+        'exits': {'norden': 'westliche_haus_gabelung', 'westen': 'krankenhaus_eingang', 'süden': 'home_depot_weggabelung_nord_ost'},
         'items': [],
         'in_development': False,
         'spawn_chance': True,
@@ -492,24 +514,24 @@ rooms = {
     },
     'krankenhaus_eingang': {#Krankenhaus
         'name': 'Krankenhaus Eingang',
-        'description': 'Vor dir sind kaputte glastüren, von inneren des Krankenhauses hörst du Zombies schreien. Richtung westen gelangst du zurück auf die Straße',
+        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
         'exits': {'osten': 'krankenhaus_straße'},
         'items': [],
         'in_development': False
     },
     'östliche_straße': {#stadt
         'name': 'Östliche Straße',
-        'description': 'Du stehst auf der Straße, weitere kaputte Autos und blut sind auf der Straße sehbar. Im Osten liegt ein Haus, ',
-        'exits': {'norden': 'nord_westliche_weggabelung', 'osten': 'haus2', 'süden': 'oestlich_weggabelung'},
+        'description': 'Kaputte Autos und Blutspuren bedecken die Straße. Im NORDEN liegt die nordöstliche Weggabelung. Im OSTEN steht ein verlassenes Haus. Nach SÜDEN geht es zur östlichen Weggabelung.',
+        'exits': {'norden': 'nord_östliche_weggabelung', 'osten': 'haus2', 'süden': 'oestlich_weggabelung'},
         'items': [],
         'in_development': False,
         'spawn_chance': True,
         'zombie_spawn': False
     },
     'nord_westliche_weggabelung': {#Stadt Norden
-        'name': 'Nord Westliche weggabelung',
-        'description': 'Du befindest dich an einer weggabelung, im westen liegt die Bibliothek Straße, richtung osten befinden sich weitere häuser',
-        'exits': {'osten': 'östliche_straße', 'westen': 'bibliothek_straße'},
+        'name': 'Nord Westliche Weggabelung',
+        'description': 'Eine Weggabelung im nördlichen Teil der Stadt. Im WESTEN führt die Straße zur Bibliothek. Nach OSTEN geht es zur nordöstlichen Weggabelung. Im SÜDEN liegt die westliche Hausgabelung.',
+        'exits': {'osten': 'nord_östliche_weggabelung', 'westen': 'bibliothek_straße', 'süden': 'westliche_haus_gabelung'},
         'items': [],
         'in_development': False,
         'spawn_chance': True,
@@ -517,7 +539,7 @@ rooms = {
     },
     'bibliothek_straße': {#Bibliothek
         'name': 'Bibliothek Straße',
-        'description': 'Du stehst auf der Straße, weitere kaputte Autos und blut sind auf der Straße sehbar. Im Osten liegt ein Haus, ',
+        'description': 'Eine ruhige Straße. Im NORDEN siehst du den Eingang zur Bibliothek. Im OSTEN führt der Weg zurück zur nordwestlichen Weggabelung.',
         'exits': {'norden': 'bibliothek_eingang', 'osten': 'nord_westliche_weggabelung'},
         'items': [],
         'in_development': False,
@@ -526,7 +548,7 @@ rooms = {
     },
     'bibliothek_eingang': {#Bibliothek
         'name': 'Bibliothek Eingang',
-        'description': 'Du stehst vor den Türen der Bibliothek, knarzen ist von drausen zuhören. Im Osten liegt ein Haus, ',
+        'description': 'Du stehst vor den Türen der Bibliothek. Leises Knarzen ist von drinnen zu hören. Im SÜDEN geht es zurück zur Straße. Im NORDEN liegt das Innere der Bibliothek.',
         'exits': {'süden': 'bibliothek_straße', 'norden': 'bibliothek_1.1'},
         'items': [],
         'in_development': False
@@ -596,9 +618,9 @@ rooms = {
         'in_development': False
     },
     'nord_östliche_weggabelung': {#Stadt Norden
-        'name': 'Nord Östliche weggabelung',
-        'description': 'Im mitten von der weggabelung siehst du den Parkplatz von Walmart und ein weiteres Haus im Norden',
-        'exits': {'norden': 'norden_straße', 'westen': 'nord-westliche weggabelung', 'süden': 'östliche_straße', 'osten': 'parkplatz'},
+        'name': 'Nord Östliche Weggabelung',
+        'description': 'Eine breite Weggabelung. Im NORDEN führt die Straße weiter. Im WESTEN liegt die nordwestliche Weggabelung. Nach SÜDEN geht es zur östlichen Straße. Im OSTEN siehst du den Parkplatz von Walmart.',
+        'exits': {'norden': 'norden_straße', 'westen': 'nord_westliche_weggabelung', 'süden': 'östliche_straße', 'nord_osten': 'parkplatz'},
         'items': [],
         'in_development': False,
         'spawn_chance': True,
@@ -731,7 +753,7 @@ rooms = {
     },
     'norden_straße': {#Stadt Norden
         'name': 'Norden Straße',
-        'description': 'Im westen von dir ist ein Haus, die Türen stehen offen, im osten liegt der Parkplatz von Walmart. Im Süden gehsts zurück zur weggabelung.',
+        'description': 'Eine Straße im Norden der Stadt. Im WESTEN steht ein Haus mit offenen Türen. Im OSTEN liegt der Parkplatz von Walmart. Nach SÜDEN geht es zurück zur Weggabelung.',
         'exits': {'westen': 'haus_3_eingang', 'süden': 'nord_östliche_weggabelung', 'osten': 'parkplatz'},
         'items': [],
         'in_development': True,
@@ -788,9 +810,9 @@ rooms = {
         'in_development': True
     },
     'oestlich_weggabelung': {#Stadt
-        'name': 'Östliche weggabelung',
-        'description': 'Du stehst auf der Straße, weitere kaputte Autos und blut sind auf der Straße sehbar. Im Osten liegt ein Park, ',
-        'exits': {'norden': 'nord_östliche_weggabelung', 'westen': 'suedlich_haus', 'osten': 'park', 'süden': 'skyscraper_weggabelung'},
+        'name': 'Östliche Weggabelung',
+        'description': 'Kaputte Autos und Blutspuren liegen auf der Straße. Im NORDEN ist die östliche Straße. Nach WESTEN geht es zur südlichen Straße. Im OSTEN liegt ein verwilderter Park. Nach SÜDEN führt die Park Straße.',
+        'exits': {'norden': 'östliche_straße', 'westen': 'suedlich_haus', 'süd_osten': 'park', 'süden': 'park_straße'},
         'items': [],
         'in_development': True,
         'spawn_chance': True,
@@ -798,8 +820,8 @@ rooms = {
     },
     'park_straße': {#Stadt
         'name': 'Park Straße',
-        'description': 'Du stehst auf der Straße, weitere kaputte Autos und blut sind auf der Straße sehbar. Im Osten liegt ein Park, ',
-        'exits': {'norden': 'oestlich weggabelung', 'osten': 'park', 'süden': 'skyscraper_weggabelung'},
+        'description': 'Eine Straße entlang des Parks. Im NORDEN liegt die östliche Weggabelung. Im OSTEN erstreckt sich der Park. Nach SÜDEN führt der Weg zur Skyscraper Weggabelung.',
+        'exits': {'norden': 'oestlich_weggabelung', 'osten': 'park', 'süden': 'skyscraper_weggabelung'},
         'items': [],
         'in_development': True,
         'spawn_chance': True,
@@ -807,28 +829,111 @@ rooms = {
     },
     'skyscraper_weggabelung': {#Stadt
         'name': 'Skyscraper Weggabelung',
-        'description': 'Du stehst an einer weggabelung, nach norden siehst du die Parkstraße, nach Süden siehst ein Hochhaus. Nach WESTEN ist Straße Pizzeria.',
-        'exits': {'norden': 'park_straße', 'osten': 'straße_pizzeria', 'süden': 'weggabelung_skyscraper2'},
+        'description': 'Ein Hochhaus ragt über dir in den Himmel. Im NORDEN ist die Park Straße. Nach WESTEN führt die Straße zur Pizzeria. Im OSTEN liegt die südöstliche Skyscraper Weggabelung. Nach SÜDEN führt die Straße weiter.',
+        'exits': {'norden': 'park_straße', 'westen': 'straße_pizzeria', 'osten': 'süd_östliche_skyscraper_weggabelung', 'süden': 'westliche_skyscraper2_weggabelung'},
         'items': [],
         'in_development': True,
         'spawn_chance': True,
         'zombie_spawn': False
     },
-    'weggabelung_skyscraper2': {#Stadt
-        'name': 'Weggabelung Skyscraper 2',
-        'description': 'Du stehst an einer weggabelung, nach norden siehst du die Skyscraperweggabelung. Nach westen ist Home Depot Straße Ost',
-        'exits': {'norden': 'skyscraper_weggabelung','osten': 'home_depot_straße_ost'},
+    'süd_östliche_skyscraper_weggabelung': {#Stadt
+        'name': 'Süd Östliche Skyscraper Weggabelung',
+        'description': 'Eine Weggabelung im Schatten der Hochhäuser. Im WESTEN liegt die Skyscraper Weggabelung. Nach SÜDEN führt die Straße weiter.',
+        'exits': {'westen': 'skyscraper_weggabelung', 'süden': 'östliche_skyscraper2_straße'},
         'items': [],
         'in_development': True,
         'spawn_chance': True,
         'zombie_spawn': False
     },
-    'noerdlich_haus': {#Stadt
-        'name': 'Nördlich vom Versteck',
-        'description': 'Du stehst nördlich von deinem Versteck. Der Garten ist überwuchert. Nach SÜDEN kannst du zur Westseite, nach OSTEN zur Ostseite.',
-        'exits': {'süden': 'westlich_haus_gabelung', 'osten': 'oestlich_weggabelung'},
+    'östliche_skyscraper2_straße': {#Stadt
+        'name': 'Östliche Skyscraper Straße 2',
+        'description': 'Eine verwüstete Straße zwischen Hochhäusern. Im NORDEN liegt die südöstliche Skyscraper Weggabelung.',
+        'exits': {'norden': 'süd_östliche_skyscraper_weggabelung'},
         'items': [],
-        'in_development': True
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'westliche_skyscraper2_weggabelung': {#Stadt
+        'name': 'Westliche Skyscraper2 Weggabelung',
+        'description': 'Eine Weggabelung. Im NORDEN liegt die Skyscraper Weggabelung. Nach WESTEN führt die Straße zur südlichen Pizzeria Straße.',
+        'exits': {'norden': 'skyscraper_weggabelung', 'westen': 'südliche_pizzeria_straße'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'südliche_pizzeria_straße': {#Stadt
+        'name': 'Südliche Pizzeria Straße',
+        'description': 'Eine Straße südlich der Pizzeria. Im OSTEN liegt die Skyscraper Weggabelung. Nach WESTEN geht es zur Home Depot Weggabelung Osten.',
+        'exits': {'osten': 'skyscraper_weggabelung', 'westen': 'home_depot_weggabelung_osten'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'home_depot_weggabelung_osten': {#Stadt
+        'name': 'Home Depot Weggabelung Osten',
+        'description': 'Eine Straße nahe dem Home Depot. Im NORDEN liegt die Home Depot Weggabelung Nord Ost. Im OSTEN ist die südliche Pizzeria Straße. Nach SÜDEN geht es zur Home Depot Weggabelung Süd Ost.',
+        'exits': {'norden': 'home_depot_weggabelung_nord_ost', 'osten': 'südliche_pizzeria_straße', 'süden': 'home_depot_weggabelung_süd_ost'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'home_depot_weggabelung_süd_ost': {#Stadt
+        'name': 'Home Depot Weggabelung Süd Ost',
+        'description': 'Eine Weggabelung an der Südostseite des Home Depot. Im NORDEN liegt die Home Depot Weggabelung Osten. Nach WESTEN führt die Home Depot Straße Süd.',
+        'exits': {'norden': 'home_depot_weggabelung_osten', 'westen': 'home_depot_straße_süd'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'home_depot_straße_süd': {#Stadt
+        'name': 'Home Depot Straße Süd',
+        'description': 'Eine Straße an der Südseite des Home Depot. Im OSTEN liegt die Home Depot Weggabelung Süd Ost. Nach WESTEN führt die Straße zur Home Depot Weggabelung West Süd.',
+        'exits': {'osten': 'home_depot_weggabelung_süd_ost', 'westen': 'home_depot_weggabelung_west_süd'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'home_depot_weggabelung_west_süd': {#Stadt
+        'name': 'Home Depot Weggabelung West Süd',
+        'description': 'Eine Weggabelung an der Südwestseite des Home Depot. Im OSTEN liegt die Home Depot Straße Süd. Nach NORDEN führt die Home Depot Straße West.',
+        'exits': {'osten': 'home_depot_straße_süd', 'norden': 'home_depot_straße_west'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'home_depot_straße_west': {#Stadt
+        'name': 'Home Depot Straße West',
+        'description': 'Eine Straße an der Westseite des Home Depot. Im SÜDEN liegt die Home Depot Weggabelung West Süd. Nach NORDEN führt die Straße zur Home Depot Weggabelung West Nord.',
+        'exits': {'süden': 'home_depot_weggabelung_west_süd', 'norden': 'home_depot_weggabelung_west_nord'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'home_depot_weggabelung_west_nord': {#Stadt
+        'name': 'Home Depot Weggabelung West Nord',
+        'description': 'Eine Weggabelung an der Nordwestseite des Home Depot. Im SÜDEN liegt die Home Depot Weggabelung West. Nach OSTEN führt die Home Depot Straße Nord.',
+        'exits': {'süden': 'home_depot_straße_west', 'osten': 'home_depot_straße_nord'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'home_depot_straße_nord': {#Stadt
+        'name': 'Home Depot Straße Nord',
+        'description': 'Eine Straße an der Nordseite des Home Depot. Im OSTEN liegt die Home Depot Weggabelung Nord Ost. Nach WESTEN führt die Straße zur Home Depot Weggabelung Nord West.',
+        'exits': {'osten': 'home_depot_weggabelung_nord_ost', 'westen': 'home_depot_weggabelung_nord_west'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
     },
     'haus1': {#Haus1
         'name': 'Haus 1',
@@ -836,7 +941,55 @@ rooms = {
         'exits': {'norden': 'suedlich_haus', 'osten': 'haus1_vordertür'},
         'items': [],
         'in_development': True
-    },     
+    },
+    'haus1_vordertür': {#Haus1
+        'name': 'Haus 1 - Vordertür',
+        'description': 'Du stehst im Eingangsbereich von Haus 1. Es riecht muffig und der Boden knarzt unter deinen Füßen.',
+        'exits': {'westen': 'haus1'},
+        'items': [],
+        'in_development': True
+    },
+    'haus2': {#Haus2
+        'name': 'Haus 2',
+        'description': 'Du stehst vor einem verlassenen Haus. Die Tür ist verriegelt, durch die zerbrochenen Fenster siehst du nur Dunkelheit.',
+        'exits': {'westen': 'östliche_straße'},
+        'items': [],
+        'in_development': True
+    },
+    'straße_pizzeria': {#Stadt
+        'name': 'Straße Pizzeria',
+        'description': 'Eine Straße vor einer alten Pizzeria. Im OSTEN geht es zur Skyscraper Weggabelung. Nach WESTEN führt der Weg Richtung Home Depot.',
+        'exits': {'osten': 'skyscraper_weggabelung', 'westen': 'home_depot_weggabelung_nord_ost'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'home_depot_weggabelung_nord_ost': {#Stadt
+        'name': 'Home Depot Weggabelung Nord Ost',
+        'description': 'Eine breite Straße an der Nordostseite des Home Depot. Im OSTEN liegt die Pizzeria Straße. Nach WESTEN führt die Home Depot Straße Nord. Im NORDEN geht es zur Krankenhaus Straße.',
+        'exits': {'osten': 'straße_pizzeria', 'westen': 'home_depot_straße_nord', 'norden': 'krankenhaus_straße'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'park': {#Stadt
+        'name': 'Park',
+        'description': 'Ein verwilderter Park. Überwucherte Bänke und ein rostiger Spielplatz. Die Natur holt sich alles zurück. Im WESTEN liegt die östliche Weggabelung. Nach NORDEN führt die Park Straße.',
+        'exits': {'westen': 'oestlich_weggabelung', 'norden': 'park_straße'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'bedroom_2': {#Haus3
+        'name': 'Schlafzimmer 2',
+        'description': 'Ein kleines Schlafzimmer. Das Bett ist umgeworfen, Kleidung liegt verstreut auf dem Boden.',
+        'exits': {'norden': 'haus_3_v'},
+        'items': [],
+        'in_development': True
+    },
 }
 
 # Build the spatial GAME_MAP from the rooms dictionary
@@ -867,11 +1020,23 @@ BUILDING_HIERARCHY = {
     'stadt': {
         'name': 'Stadt',
         'floors': {
-            'straßen': ['suedlich_haus', 'westlich_haus_gabelung',
+            'straßen': ['suedlich_haus', 'westliche_haus_gabelung',
                        'oestlich_weggabelung', 'nord_westliche_weggabelung',
                        'nord_östliche_weggabelung', 'östliche_straße',
                        'norden_straße', 'park_straße', 'skyscraper_weggabelung',
-                       'weggabelung_skyscraper2', 'noerdlich_haus'],
+                       'straße_pizzeria',
+                       'home_depot_weggabelung_nord_ost',
+                       'süd_östliche_skyscraper_weggabelung',
+                       'östliche_skyscraper2_straße',
+                       'westliche_skyscraper2_weggabelung',
+                       'südliche_pizzeria_straße',
+                       'home_depot_weggabelung_osten',
+                       'home_depot_weggabelung_süd_ost',
+                       'home_depot_straße_süd',
+                       'home_depot_weggabelung_west_süd',
+                       'home_depot_straße_west',
+                       'home_depot_weggabelung_west_nord',
+                       'home_depot_straße_nord'],
         },
     },
     'krankenhaus': {
@@ -901,14 +1066,23 @@ BUILDING_HIERARCHY = {
     },
     'haus1': {
         'name': 'Haus 1',
-        'floors': {'main': ['haus1']},
+        'floors': {'main': ['haus1', 'haus1_vordertür']},
+    },
+    'haus2': {
+        'name': 'Haus 2',
+        'floors': {'main': ['haus2']},
     },
     'haus3': {
         'name': 'Haus 3',
         'floors': {
             'main': ['haus_3_eingang', 'haus_3_v', 'haus_3_wohnbereich',
-                    'wohnzimmer_h3', 'küche_h3', 'bathroom_3', 'bedroom_3'],
+                    'wohnzimmer_h3', 'küche_h3', 'bathroom_3', 'bedroom_3',
+                    'bedroom_2'],
         },
+    },
+    'park': {
+        'name': 'Park',
+        'floors': {'main': ['park']},
     },
 }
 
@@ -964,36 +1138,41 @@ TRANSITIONS = [
     {'id': 'vordertuer_strasse', 'type': 'entrance', 'from': 'vordertuer', 'to': 'suedlich_haus',
      'dir_from': 'süden', 'dir_to': 'norden'},
     # --- STADT ---
-    {'id': 'sued_west', 'type': 'passage', 'from': 'suedlich_haus', 'to': 'westlich_haus_gabelung',
+    {'id': 'sued_west', 'type': 'passage', 'from': 'suedlich_haus', 'to': 'westliche_haus_gabelung',
      'dir_from': 'westen', 'dir_to': 'osten'},
     {'id': 'sued_ost', 'type': 'passage', 'from': 'suedlich_haus', 'to': 'oestlich_weggabelung',
      'dir_from': 'osten', 'dir_to': 'westen'},
     {'id': 'sued_haus1', 'type': 'passage', 'from': 'suedlich_haus', 'to': 'haus1',
      'dir_from': 'süden', 'dir_to': 'norden'},
-    {'id': 'west_nw', 'type': 'passage', 'from': 'westlich_haus_gabelung', 'to': 'nord_westliche_weggabelung',
+    {'id': 'west_nw', 'type': 'passage', 'from': 'westliche_haus_gabelung', 'to': 'nord_westliche_weggabelung',
      'dir_from': 'norden', 'dir_to': 'süden'},
-    {'id': 'west_kh', 'type': 'passage', 'from': 'westlich_haus_gabelung', 'to': 'krankenhaus_straße',
+    {'id': 'west_kh', 'type': 'passage', 'from': 'westliche_haus_gabelung', 'to': 'krankenhaus_straße',
      'dir_from': 'süden', 'dir_to': 'norden'},
     {'id': 'kh_str_eing', 'type': 'entrance', 'from': 'krankenhaus_straße', 'to': 'krankenhaus_eingang',
      'dir_from': 'westen', 'dir_to': 'osten'},
-    {'id': 'nw_ost_str', 'type': 'passage', 'from': 'nord_westliche_weggabelung', 'to': 'östliche_straße',
-     'dir_from': 'osten', 'dir_to': 'norden'},
+    {'id': 'nw_no', 'type': 'passage', 'from': 'nord_westliche_weggabelung', 'to': 'nord_östliche_weggabelung',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'ost_str_no', 'type': 'passage', 'from': 'östliche_straße', 'to': 'nord_östliche_weggabelung',
+     'dir_from': 'norden', 'dir_to': 'süden'},
     {'id': 'nw_bib', 'type': 'passage', 'from': 'nord_westliche_weggabelung', 'to': 'bibliothek_straße',
      'dir_from': 'westen', 'dir_to': 'osten'},
     {'id': 'ost_str_ost_gab', 'type': 'passage', 'from': 'östliche_straße', 'to': 'oestlich_weggabelung',
-     'dir_from': 'süden', 'dir_to': 'norden'},
-    {'id': 'ost_gab_no', 'type': 'passage', 'from': 'oestlich_weggabelung', 'to': 'nord_östliche_weggabelung',
+     'dir_from': 'süden', 'dir_to': 'westen'},
+    {'id': 'ost_gab_ost_str', 'type': 'passage', 'from': 'oestlich_weggabelung', 'to': 'östliche_straße',
      'dir_from': 'norden', 'dir_to': 'süden'},
     {'id': 'ost_gab_park', 'type': 'passage', 'from': 'oestlich_weggabelung', 'to': 'park_straße',
-     'dir_from': 'osten', 'dir_to': 'norden'},
-    {'id': 'ost_gab_sky', 'type': 'passage', 'from': 'oestlich_weggabelung', 'to': 'skyscraper_weggabelung',
      'dir_from': 'süden', 'dir_to': 'norden'},
-    {'id': 'sky_sky2', 'type': 'passage', 'from': 'skyscraper_weggabelung', 'to': 'weggabelung_skyscraper2',
+    {'id': 'park_sky', 'type': 'passage', 'from': 'park_straße', 'to': 'skyscraper_weggabelung',
      'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'sky_pizzeria', 'type': 'passage', 'from': 'skyscraper_weggabelung', 'to': 'straße_pizzeria',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'pizzeria_homedepot', 'type': 'passage', 'from': 'straße_pizzeria', 'to': 'home_depot_weggabelung_nord_ost',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+
     {'id': 'no_nord_str', 'type': 'passage', 'from': 'nord_östliche_weggabelung', 'to': 'norden_straße',
      'dir_from': 'norden', 'dir_to': 'süden'},
     {'id': 'no_parkplatz', 'type': 'passage', 'from': 'nord_östliche_weggabelung', 'to': 'parkplatz',
-     'dir_from': 'osten', 'dir_to': 'süden'},
+     'dir_from': 'nord_osten', 'dir_to': 'süden'},
     {'id': 'nord_str_park', 'type': 'passage', 'from': 'norden_straße', 'to': 'parkplatz',
      'dir_from': 'osten', 'dir_to': 'westen'},
     {'id': 'nord_str_h3', 'type': 'entrance', 'from': 'norden_straße', 'to': 'haus_3_eingang',
@@ -1068,6 +1247,49 @@ TRANSITIONS = [
      'dir_from': 'süden', 'dir_to': 'norden'},
     {'id': 'h3_wb_bed', 'type': 'door', 'from': 'haus_3_wohnbereich', 'to': 'bedroom_3',
      'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'h3_v_bed2', 'type': 'door', 'from': 'haus_3_v', 'to': 'bedroom_2',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    # --- HAUS 2 ---
+    {'id': 'ost_str_haus2', 'type': 'entrance', 'from': 'östliche_straße', 'to': 'haus2',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    # --- PARK ---
+    {'id': 'ost_gab_park_ort', 'type': 'passage', 'from': 'oestlich_weggabelung', 'to': 'park',
+     'dir_from': 'süd_osten', 'dir_to': 'westen'},
+    {'id': 'park_str_park', 'type': 'passage', 'from': 'park_straße', 'to': 'park',
+     'dir_from': 'osten', 'dir_to': 'norden'},
+    # --- NEUE STADT VERBINDUNGEN ---
+    {'id': 'nw_west', 'type': 'passage', 'from': 'nord_westliche_weggabelung', 'to': 'westliche_haus_gabelung',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'kh_homedepot', 'type': 'passage', 'from': 'krankenhaus_straße', 'to': 'home_depot_weggabelung_nord_ost',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    # --- SKYSCRAPER BEREICH ---
+    {'id': 'sky_sued_ost', 'type': 'passage', 'from': 'skyscraper_weggabelung', 'to': 'süd_östliche_skyscraper_weggabelung',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'sky_west_sky2', 'type': 'passage', 'from': 'skyscraper_weggabelung', 'to': 'westliche_skyscraper2_weggabelung',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'sued_ost_sky_ost_sky2', 'type': 'passage', 'from': 'süd_östliche_skyscraper_weggabelung', 'to': 'östliche_skyscraper2_straße',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'west_sky2_sued_pizza', 'type': 'passage', 'from': 'westliche_skyscraper2_weggabelung', 'to': 'südliche_pizzeria_straße',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'sued_pizza_hd_ost', 'type': 'passage', 'from': 'südliche_pizzeria_straße', 'to': 'home_depot_weggabelung_osten',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    # --- HOME DEPOT PERIMETER ---
+    {'id': 'hd_ost_hd_no', 'type': 'passage', 'from': 'home_depot_weggabelung_osten', 'to': 'home_depot_weggabelung_nord_ost',
+     'dir_from': 'norden', 'dir_to': None},
+    {'id': 'hd_ost_hd_so', 'type': 'passage', 'from': 'home_depot_weggabelung_osten', 'to': 'home_depot_weggabelung_süd_ost',
+     'dir_from': 'süden', 'dir_to': 'norden'},
+    {'id': 'hd_so_hd_sued', 'type': 'passage', 'from': 'home_depot_weggabelung_süd_ost', 'to': 'home_depot_straße_süd',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'hd_sued_hd_ws', 'type': 'passage', 'from': 'home_depot_straße_süd', 'to': 'home_depot_weggabelung_west_süd',
+     'dir_from': 'westen', 'dir_to': 'osten'},
+    {'id': 'hd_ws_hd_west', 'type': 'passage', 'from': 'home_depot_weggabelung_west_süd', 'to': 'home_depot_straße_west',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'hd_west_hd_wn', 'type': 'passage', 'from': 'home_depot_straße_west', 'to': 'home_depot_weggabelung_west_nord',
+     'dir_from': 'norden', 'dir_to': 'süden'},
+    {'id': 'hd_wn_hd_nord', 'type': 'passage', 'from': 'home_depot_weggabelung_west_nord', 'to': 'home_depot_straße_nord',
+     'dir_from': 'osten', 'dir_to': 'westen'},
+    {'id': 'hd_nord_hd_no', 'type': 'passage', 'from': 'home_depot_straße_nord', 'to': 'home_depot_weggabelung_nord_ost',
+     'dir_from': 'osten', 'dir_to': 'westen'},
 ]
 
 # Build transition lookup: room_key → list of transitions from that room
@@ -1721,6 +1943,99 @@ def describe_room():
 # Scaled by 2x for visual spacing in the graph view
 GRAPH_LAYOUT = {rk: (coord[0] * 2, coord[1] * 2) for rk, coord in ((r, get_room_coord(r)) for r in rooms) if coord is not None}
 
+# Load custom positions from JSON if file exists
+import json as _json
+try:
+    with open(MAP_LAYOUT_FILE, 'r', encoding='utf-8') as _f:
+        _custom = _json.load(_f)
+    # Support both old format (flat dict) and new format (nested)
+    if 'nodes' in _custom:
+        for _rk, _pos in _custom['nodes'].items():
+            if _rk in GRAPH_LAYOUT:
+                GRAPH_LAYOUT[_rk] = tuple(_pos)
+        custom_blocks = _custom.get('custom_blocks', [])
+    else:
+        # Old format: flat dict of room positions
+        for _rk, _pos in _custom.items():
+            if _rk in GRAPH_LAYOUT:
+                GRAPH_LAYOUT[_rk] = tuple(_pos)
+    print(f"[MAP] Custom layout loaded from {MAP_LAYOUT_FILE}")
+except FileNotFoundError:
+    pass
+except Exception as _e:
+    print(f"[MAP] Could not load custom layout: {_e}")
+
+def save_map_layout():
+    """Save current GRAPH_LAYOUT and custom_blocks to JSON file."""
+    import json
+    data = {
+        'nodes': {rk: list(pos) for rk, pos in GRAPH_LAYOUT.items()},
+        'custom_blocks': custom_blocks
+    }
+    with open(MAP_LAYOUT_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    return MAP_LAYOUT_FILE
+
+def get_node_at_screen_pos(mx, my, unit, cx, cy):
+    """Return room_key of node at screen position (mx, my), or None."""
+    hit_radius = max(8, int(20 * map_zoom))
+    for rk, (rx, ry) in GRAPH_LAYOUT.items():
+        nx = int(cx + rx * unit)
+        ny = int(cy + ry * unit)
+        if (mx - nx) ** 2 + (my - ny) ** 2 <= hit_radius ** 2:
+            return rk
+    return None
+
+def screen_to_graph(sx, sy, unit, cx, cy):
+    """Convert screen pixel coords to GRAPH_LAYOUT coords."""
+    gx = (sx - cx) / unit
+    gy = (sy - cy) / unit
+    return (gx, gy)
+
+def get_building_at_screen_pos(mx, my, unit, cx, cy):
+    """Return building_key if (mx, my) is inside a building bounding box, or None."""
+    for b_key, b_data in BUILDING_HIERARCHY.items():
+        b_rooms = []
+        for f_key, f_rooms in b_data.get('floors', {}).items():
+            b_rooms.extend(f_rooms)
+        if not b_rooms:
+            continue
+        coords = [GRAPH_LAYOUT.get(r, (0,0)) for r in b_rooms]
+        min_x = min(c[0] for c in coords)
+        max_x = max(c[0] for c in coords)
+        min_y = min(c[1] for c in coords)
+        max_y = max(c[1] for c in coords)
+        pad = 1.2
+        bx1 = cx + (min_x - pad) * unit
+        by1 = cy + (min_y - pad) * unit
+        bx2 = cx + (max_x + pad) * unit
+        by2 = cy + (max_y + pad) * unit
+        if bx1 <= mx <= bx2 and by1 <= my <= by2:
+            return b_key
+    return None
+
+def get_block_at_screen_pos(mx, my, unit, cx, cy):
+    """Return (block_index, handle_or_None) for custom block at screen pos.
+    handle is one of 'tl','tr','bl','br' for resize corners, or 'move' for body/border."""
+    handle_size = max(6, int(10 * map_zoom))
+    for i, blk in enumerate(custom_blocks):
+        bx1 = int(cx + blk['gx'] * unit)
+        by1 = int(cy + blk['gy'] * unit)
+        bx2 = int(cx + (blk['gx'] + blk['gw']) * unit)
+        by2 = int(cy + (blk['gy'] + blk['gh']) * unit)
+        # Check resize corners first
+        corners = {
+            'tl': (bx1, by1), 'tr': (bx2, by1),
+            'bl': (bx1, by2), 'br': (bx2, by2)
+        }
+        for handle, (hx, hy) in corners.items():
+            if abs(mx - hx) <= handle_size and abs(my - hy) <= handle_size:
+                return (i, handle)
+        # Check entire body for moving
+        if bx1 <= mx <= bx2 and by1 <= my <= by2:
+            return (i, 'move')
+    return (None, None)
+
 def draw_map(current_time):
     """Zeichnet den Hierarchischen Node Graph basierend auf Nested Containern"""
     screen.fill((20, 20, 25))
@@ -1733,60 +2048,42 @@ def draw_map(current_time):
         rx, ry = GRAPH_LAYOUT.get(room_k, (0, 0))
         return (int(center_x + rx * UNIT), int(center_y + ry * UNIT))
         
-    # 1) Gebäude & Stockwerk Bounding Boxes (Gruppierungen)
-    building_colors = {
-        'bunker': (40, 60, 40), 'versteck': (40, 50, 70), 
-        'stadt': (50, 50, 50), 'krankenhaus': (70, 40, 40),
-        'bibliothek': (60, 40, 70), 'walmart': (70, 60, 40),
-        'haus1': (60, 50, 40), 'haus3': (50, 60, 40)
-    }
-    
-    # Finde Bounding Boxes für jedes Floor in jedem Building
-    for b_key, b_data in BUILDING_HIERARCHY.items():
-        b_color = building_colors.get(b_key, (60, 60, 60))
-        
-        # Sammele alle Räume dieses Gebäudes
-        b_rooms = []
-        for f_key, f_rooms in b_data.get('floors', {}).items():
-            b_rooms.extend(f_rooms)
-            
-        if not b_rooms: continue
-        
-        # Gebäude Bounding Box
-        min_x = min([GRAPH_LAYOUT.get(r, (0,0))[0] for r in b_rooms])
-        max_x = max([GRAPH_LAYOUT.get(r, (0,0))[0] for r in b_rooms])
-        min_y = min([GRAPH_LAYOUT.get(r, (0,0))[1] for r in b_rooms])
-        max_y = max([GRAPH_LAYOUT.get(r, (0,0))[1] for r in b_rooms])
-        
-        pad = 1.2
-        bx1, by1 = int(center_x + (min_x - pad) * UNIT), int(center_y + (min_y - pad) * UNIT)
-        bx2, by2 = int(center_x + (max_x + pad) * UNIT), int(center_y + (max_y + pad) * UNIT)
+    # (Building hierarchy boxes removed - use custom blocks [N] for grouping)
+
+
+    # 1.5) Custom Blocks (User-created annotation boxes)
+    for i, blk in enumerate(custom_blocks):
+        bx1 = int(center_x + blk['gx'] * UNIT)
+        by1 = int(center_y + blk['gy'] * UNIT)
+        bx2 = int(center_x + (blk['gx'] + blk['gw']) * UNIT)
+        by2 = int(center_y + (blk['gy'] + blk['gh']) * UNIT)
         bw, bh = bx2 - bx1, by2 - by1
         
-        # Draw Building Box
-        pygame.draw.rect(screen, (b_color[0]-20, b_color[1]-20, b_color[2]-20, 100), (bx1, by1, bw, bh))
-        pygame.draw.rect(screen, b_color, (bx1, by1, bw, bh), max(1, int(2*map_zoom)))
+        c = blk.get('color', [80, 60, 120])
+        fill = (max(0, c[0]-30), max(0, c[1]-30), max(0, c[2]-30))
+        border = tuple(c)
+        border_w = max(1, int(2*map_zoom))
         
-        # Building Label
-        name_surf = font_terminal.render(b_data.get('name', b_key).upper(), True, (150, 150, 150))
+        if i == selected_block_idx:
+            border = (255, 220, 80)
+            border_w = max(2, int(3*map_zoom))
+        
+        pygame.draw.rect(screen, fill, (bx1, by1, bw, bh))
+        pygame.draw.rect(screen, border, (bx1, by1, bw, bh), border_w)
+        
+        # Block name
+        name = blk.get('name', 'Block')
+        if block_naming and i == selected_block_idx:
+            name = block_name_input + '█'
+        name_surf = font_terminal.render(name.upper(), True, (200, 200, 200))
         screen.blit(name_surf, (bx1 + 10, by1 + 10))
         
-        # Floor Bounding Boxes
-        for f_key, f_rooms in b_data.get('floors', {}).items():
-            if not f_rooms: continue
-            min_x = min([GRAPH_LAYOUT.get(r, (0,0))[0] for r in f_rooms])
-            max_x = max([GRAPH_LAYOUT.get(r, (0,0))[0] for r in f_rooms])
-            min_y = min([GRAPH_LAYOUT.get(r, (0,0))[1] for r in f_rooms])
-            max_y = max([GRAPH_LAYOUT.get(r, (0,0))[1] for r in f_rooms])
-            
-            fpad = 0.8
-            fx1, fy1 = int(center_x + (min_x - fpad) * UNIT), int(center_y + (min_y - fpad) * UNIT)
-            fx2, fy2 = int(center_x + (max_x + fpad) * UNIT), int(center_y + (max_y + fpad) * UNIT)
-            fw, fh = fx2 - fx1, fy2 - fy1
-            
-            pygame.draw.rect(screen, (50, 50, 50), (fx1, fy1, fw, fh), max(1, int(1*map_zoom)))
-            floor_surf = font_tiny.render(f"FL: {f_key}", True, (100, 100, 100))
-            screen.blit(floor_surf, (fx1 + 5, fy1 + 5))
+        # Resize handles on selected block
+        if i == selected_block_idx:
+            handle_size = max(4, int(6*map_zoom))
+            for hx, hy in [(bx1, by1), (bx2, by1), (bx1, by2), (bx2, by2)]:
+                pygame.draw.rect(screen, (255, 220, 80), 
+                    (hx - handle_size, hy - handle_size, handle_size*2, handle_size*2))
 
     # 2) Transitions (Kanten/Edges)
     for t in TRANSITIONS:
@@ -1842,6 +2139,13 @@ def draw_map(current_time):
         fill_color = (60, 120, 80) if r_key in visited_rooms else (40, 40, 40)
         border_color = (100, 200, 150) if r_key in visited_rooms else (80, 80, 80)
         
+        # Highlight hovered/dragged node
+        if r_key == node_drag_key:
+            border_color = (255, 200, 50)
+            fill_color = (100, 80, 30)
+        elif r_key == node_hovered_key:
+            border_color = (200, 200, 100)
+        
         pygame.draw.circle(screen, fill_color, pos, node_radius)
         pygame.draw.circle(screen, border_color, pos, node_radius, max(1, int(2*map_zoom)))
         
@@ -1889,8 +2193,14 @@ def draw_map(current_time):
     screen.blit(font_tiny.render("Treppen / Etage", True, (150, 150, 150)), (leg_x+35, leg_y+70))
     
     # Controls Help Bottom Right
-    help_surf = font_tiny.render("[M/ESC] Zurück  [Drag/Pfeile] Pan  [+/-] Zoom", True, (150, 180, 200))
+    # Controls Help Bottom Right
+    help_surf = font_tiny.render("[M/ESC] Zurück  [Drag] Pan  [Rechtsklick] Node/Block ziehen  [S] Speichern  [N] Neuer Block  [F2] Umbenennen  [Entf] Löschen", True, (150, 180, 200))
     screen.blit(help_surf, (screen.get_width() - help_surf.get_width() - 30, screen.get_height() - 40))
+    
+    # Show save indicator
+    if hasattr(draw_map, '_save_msg_time') and current_time - draw_map._save_msg_time < 2000:
+        save_surf = font_terminal.render("✔ Layout gespeichert!", True, (100, 255, 100))
+        screen.blit(save_surf, (screen.get_width()//2 - save_surf.get_width()//2, 80))
 
 def process_command(command):
     """Verarbeitet Spielerbefehle"""
@@ -3249,6 +3559,9 @@ def main():
     global current_state, input_text, backspace_held, last_backspace_time, history_index, scroll_offset, max_scroll, menu_selected_index, cursor_position, map_camera_x, map_camera_y, map_zoom, map_cursor_room, map_dragging, map_drag_last_pos, options_selected_index
     global delete_held, last_delete_time, left_held, last_left_time, right_held, last_right_time
     global enter_held, last_enter_time
+    global node_dragging, node_drag_key, node_hovered_key
+    global building_dragging, building_drag_key, building_drag_start, building_drag_offsets
+    global selected_block_idx, block_resizing, block_resize_handle, block_moving, block_move_offset, block_naming, block_name_input, custom_blocks
     
     running = True
     start_time = pygame.time.get_ticks()
@@ -3334,6 +3647,18 @@ def main():
                         
                 # Map-Steuerung (Graph View Panning)
                 elif current_state == MAP:
+                    if block_naming:
+                        # Text input for block name
+                        if event.key == pygame.K_RETURN or event.key == pygame.K_ESCAPE or event.key == pygame.K_F12:
+                            if selected_block_idx is not None and selected_block_idx < len(custom_blocks):
+                                custom_blocks[selected_block_idx]['name'] = block_name_input
+                            block_naming = False
+                        elif event.key == pygame.K_BACKSPACE:
+                            block_name_input = block_name_input[:-1]
+                        elif event.unicode.isprintable() and len(block_name_input) < 30:
+                            block_name_input += event.unicode
+                        continue  # Skip other MAP key handling while naming
+                    
                     if event.key == pygame.K_UP:
                         map_camera_y -= 50 / map_zoom
                     elif event.key == pygame.K_DOWN:
@@ -3349,10 +3674,46 @@ def main():
                     elif event.key == pygame.K_m or event.key == pygame.K_ESCAPE:
                         current_state = GAME
                         map_dragging = False
+                        node_dragging = False
+                        node_drag_key = None
+                        building_dragging = False
+                        building_drag_key = None
                     elif event.key == pygame.K_r:
                         map_camera_x = 0
                         map_camera_y = 0
                         map_zoom = 1.0
+                    elif event.key == pygame.K_s:
+                        # Save custom map layout
+                        save_map_layout()
+                        draw_map._save_msg_time = pygame.time.get_ticks()
+                    elif event.key == pygame.K_n:
+                        # Create new custom block at viewport center
+                        gcx = map_camera_x / 50
+                        gcy = map_camera_y / 50
+                        new_block = {
+                            'name': f'Block {len(custom_blocks)+1}',
+                            'gx': gcx - 2, 'gy': gcy - 2,
+                            'gw': 4, 'gh': 4,
+                            'color': [random.randint(40,120), random.randint(40,120), random.randint(40,120)]
+                        }
+                        custom_blocks.append(new_block)
+                        selected_block_idx = len(custom_blocks) - 1
+                    elif event.key == pygame.K_F12:
+                        # Rename selected block
+                        if selected_block_idx is not None and selected_block_idx < len(custom_blocks):
+                            block_naming = True
+                            block_name_input = custom_blocks[selected_block_idx]['name']
+                    elif event.key == pygame.K_DELETE or event.key == pygame.K_x:
+                        # Delete selected block
+                        print(f"[MAP] Delete pressed! selected_block_idx={selected_block_idx}, blocks={len(custom_blocks)}")
+                        if selected_block_idx is not None and selected_block_idx < len(custom_blocks):
+                            custom_blocks.pop(selected_block_idx)
+                            selected_block_idx = None
+                            block_resizing = False
+                            block_moving = False
+                            print("[MAP] Block deleted!")
+                        else:
+                            print("[MAP] No block selected to delete")
                 
                 # Space im Intro
                 elif event.key == pygame.K_SPACE and current_state == INTRO:
@@ -3515,11 +3876,41 @@ def main():
                     enter_held = False
             
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:
-                    if current_state == MAP:
+                if current_state == MAP:
+                    UNIT = scale(50) * map_zoom
+                    cx = screen.get_width() / 2 - (map_camera_x * map_zoom * 50)
+                    cy = screen.get_height() / 2 - (map_camera_y * map_zoom * 50)
+                    if event.button == 3:  # Right click = drag node, block, or building
+                        hit = get_node_at_screen_pos(event.pos[0], event.pos[1], UNIT, cx, cy)
+                        if hit:
+                            node_dragging = True
+                            node_drag_key = hit
+                            selected_block_idx = None
+                        else:
+                            # Check custom blocks first
+                            blk_idx, handle = get_block_at_screen_pos(event.pos[0], event.pos[1], UNIT, cx, cy)
+                            if blk_idx is not None:
+                                selected_block_idx = blk_idx
+                                if handle and handle != 'move':  # Resize corner
+                                    block_resizing = True
+                                    block_resize_handle = handle
+                                else:  # Move block (border/title bar)
+                                    block_moving = True
+                                    gx, gy = screen_to_graph(event.pos[0], event.pos[1], UNIT, cx, cy)
+                                    blk = custom_blocks[blk_idx]
+                                    block_move_offset = (blk['gx'] - gx, blk['gy'] - gy)
+                            else:
+                                selected_block_idx = None
+                    elif event.button == 1:  # Left click = select block or pan camera
+                        blk_idx, _ = get_block_at_screen_pos(event.pos[0], event.pos[1], UNIT, cx, cy)
+                        if blk_idx is not None:
+                            selected_block_idx = blk_idx
+                        else:
+                            selected_block_idx = None
                         map_dragging = True
                         map_drag_last_pos = event.pos
-                    elif current_state == MENU:
+                elif event.button == 1:
+                    if current_state == MENU:
                         for button in menu_buttons:
                             button.click()
                     elif current_state == OPTIONS:
@@ -3529,15 +3920,51 @@ def main():
             if event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
                     map_dragging = False
+                elif event.button == 3:
+                    node_dragging = False
+                    node_drag_key = None
+                    block_resizing = False
+                    block_resize_handle = None
+                    block_moving = False
                     
             if event.type == pygame.MOUSEMOTION:
-                if current_state == MAP and map_dragging:
-                    dx = event.pos[0] - map_drag_last_pos[0]
-                    dy = event.pos[1] - map_drag_last_pos[1]
-                    drag_speed = 0.1  # Damping factor (lower = slower drag)
-                    map_camera_x -= dx * drag_speed / map_zoom
-                    map_camera_y -= dy * drag_speed / map_zoom
-                    map_drag_last_pos = event.pos
+                if current_state == MAP:
+                    UNIT = scale(50) * map_zoom
+                    cx = screen.get_width() / 2 - (map_camera_x * map_zoom * 50)
+                    cy = screen.get_height() / 2 - (map_camera_y * map_zoom * 50)
+                    if node_dragging and node_drag_key:
+                        # Move the node to new graph position
+                        gx, gy = screen_to_graph(event.pos[0], event.pos[1], UNIT, cx, cy)
+                        GRAPH_LAYOUT[node_drag_key] = (gx, gy)
+                    elif block_moving and selected_block_idx is not None:
+                        gx, gy = screen_to_graph(event.pos[0], event.pos[1], UNIT, cx, cy)
+                        custom_blocks[selected_block_idx]['gx'] = gx + block_move_offset[0]
+                        custom_blocks[selected_block_idx]['gy'] = gy + block_move_offset[1]
+                    elif block_resizing and selected_block_idx is not None:
+                        gx, gy = screen_to_graph(event.pos[0], event.pos[1], UNIT, cx, cy)
+                        blk = custom_blocks[selected_block_idx]
+                        if 'r' in block_resize_handle:  # right side
+                            blk['gw'] = max(1, gx - blk['gx'])
+                        if 'b' in block_resize_handle:  # bottom side
+                            blk['gh'] = max(1, gy - blk['gy'])
+                        if 'l' in block_resize_handle:  # left side
+                            new_x = gx
+                            blk['gw'] = max(1, (blk['gx'] + blk['gw']) - new_x)
+                            blk['gx'] = new_x
+                        if 't' in block_resize_handle:  # top side
+                            new_y = gy
+                            blk['gh'] = max(1, (blk['gy'] + blk['gh']) - new_y)
+                            blk['gy'] = new_y
+                    elif map_dragging:
+                        dx = event.pos[0] - map_drag_last_pos[0]
+                        dy = event.pos[1] - map_drag_last_pos[1]
+                        drag_speed = 0.1
+                        map_camera_x -= dx * drag_speed / map_zoom
+                        map_camera_y -= dy * drag_speed / map_zoom
+                        map_drag_last_pos = event.pos
+                    else:
+                        # Hover detection
+                        node_hovered_key = get_node_at_screen_pos(event.pos[0], event.pos[1], UNIT, cx, cy)
         
         # State-basiertes Rendering
         if current_state == INTRO:
