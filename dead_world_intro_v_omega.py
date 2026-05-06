@@ -5,7 +5,7 @@ import random
 import time
 import datetime
 import os
-from game_map import rebuild_game_map, GAME_MAP, get_room_coord, BIOME_COLORS, BIOME_ICONS
+from game_map import rebuild_game_map, GAME_MAP, get_room_coord, BIOME_COLORS, BIOME_ICONS, compute_auto_layout, DISTRICT_GRID, DISTRICT_OF
 from config import *
 from render_utils import *
 import render_utils
@@ -719,17 +719,19 @@ rooms = {
         'zombie_spawn': False
     
     },
-    'westliche_haus_gabelung': {#Stadt
+    'westliche_haus_gabelung': {  # Sub-street near Spawn
         'name': 'Westliche Weggabelung',
-        'description': 'Eine Weggabelung. Verrostete Straßenschilder zeigen in alle Richtungen. Im OSTEN liegt die südliche Straße. Nach NORDEN geht es zur nordwestlichen Weggabelung. Im SÜDEN führt die Straße Richtung Krankenhaus.',
-        'exits': {'osten': 'suedlich_haus', 'norden': 'nord_westliche_weggabelung', 'süden': 'krankenhaus_straße', 'westen': 'westlich_krankenhaus_erweiterung' },
+        'description': 'Eine Weggabelung. Verrostete Straßenschilder zeigen in alle Richtungen. Im OSTEN die südliche Straße. Nach NORDEN die nordwestliche Weggabelung. Im SÜDEN das Krankenhaus.',
+        # Removed westen → westlich_krankenhaus_erweiterung (deprecated). Western district
+        # (Maze/Friedhof/etc.) is now reached via Puente Juanchito.
+        'exits': {'osten': 'suedlich_haus', 'norden': 'nord_westliche_weggabelung', 'süden': 'krankenhaus_straße'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_straße': {#Krankenhaus
         'name': 'Krankenhaus Straße',
-        'description': 'Du stehst auf der Straße vor dem Krankenhaus. Im NORDEN führt die Straße zur westlichen Weggabelung. Im WESTEN ist der Eingang zum Krankenhaus. Nach SÜDEN geht es zur Home Depot Weggabelung Nord Ost.',
-        'exits': {'norden': 'westliche_haus_gabelung', 'westen': 'krankenhaus_eingang', 'süden': 'home_depot_weggabelung_nord_ost'},
+        'description': 'Du stehst auf der Straße vor dem Krankenhaus. Im NORDEN führt die Straße zur westlichen Weggabelung. Im WESTEN ist der Eingang zum Krankenhaus. Nach SÜDEN geht es zur Home Depot Weggabelung Nord Ost. Über einen Schleichweg im NORDWESTEN (an der Hospital-Westseite vorbei) erreicht man die Hacienda Straße.',
+        'exits': {'norden': 'westliche_haus_gabelung', 'westen': 'krankenhaus_eingang', 'süden': 'home_depot_weggabelung_nord_ost', 'nordwesten': 'hacienda_straße'},
         'items': [],
         'in_development': False,
         'spawn_chance': True,
@@ -1019,26 +1021,28 @@ rooms = {
         'spawn_chance': False,
         'zombie_spawn': False
     },
-    'bibliothek_straße': {#Bibliothek
+    'bibliothek_straße': {  # Sub-street near Library
         'name': 'Bibliothek Straße',
-        'description': 'Eine ruhige Straße. Im NORDEN siehst du den Eingang zur Bibliothek. Im OSTEN führt der Weg zurück zur nordwestlichen Weggabelung.',
-        'exits': {'norden': 'bibliothek_eingang', 'osten': 'nord_westliche_weggabelung'},
+        'description': 'Eine ruhige Straße. Im NORDOSTEN siehst du den Eingang zur Bibliothek. Im OSTEN führt der Weg zurück zur nordwestlichen Weggabelung.',
+        'exits': {'nordosten': 'bibliothek_eingang', 'osten': 'nord_westliche_weggabelung'},
         'items': [],
         'in_development': False,
         'spawn_chance': False,
         'zombie_spawn': False
     },
-    'bibliothek_eingang': {#Bibliothek
+    'bibliothek_eingang': {  # Idea-Map: Library (R1C3)
         'name': 'Bibliothek Eingang',
-        'description': 'Du stehst vor den Türen der Bibliothek. Leises Knarzen ist von drinnen zu hören. Im SÜDEN geht es zurück zur Straße. Im NORDEN liegt das Innere der Bibliothek.',
-        'exits': {'süden': 'bibliothek_straße', 'norden': 'bibliothek_1.1'},
+        'description': 'Du stehst vor den Türen der Bibliothek. Leises Knarzen ist von drinnen zu hören. Im NORDEN die Military Base, im OSTEN das Haus 3, im SÜDEN das Krankenhaus. Die Bibliothek-Straße ist im SÜDWESTEN.',
+        # Grid: R1C3. Norden=Military(R0C3), Osten=Haus3(R1C4), Süden=Krankenhaus(R2C3). Westen=R1C2 leer.
+        # Internal "bibliothek_1.1" goes to nordosten, bibliothek_straße goes südwesten (sub-street).
+        'exits': {'norden': 'military_eingang', 'osten': 'haus_3_eingang', 'süden': 'krankenhaus_eingang', 'südwesten': 'bibliothek_straße', 'nordosten': 'bibliothek_1.1'},
         'items': [],
         'in_development': False
     },
     'bibliothek_1.1': {#Bibliothek
         'name': 'Bibliothek 1',
         'description': '',
-        'exits': {'süden': 'bibliothek_eingang', 'westen': 'bibliothek_1.2', 'osten': 'bibliothek_2'},
+        'exits': {'südwesten': 'bibliothek_eingang', 'westen': 'bibliothek_1.2', 'osten': 'bibliothek_2'},
         'items': [],
         'in_development': False
     },
@@ -1318,10 +1322,10 @@ rooms = {
         'spawn_chance': False,
         'zombie_spawn': False
     },
-    'süd_östliche_skyscraper_weggabelung': {#Stadt
+    'süd_östliche_skyscraper_weggabelung': {  # Sub-street, gateway to Times Square
         'name': 'Süd Östliche Skyscraper Weggabelung',
-        'description': 'Eine Weggabelung im Schatten der Hochhäuser. Im WESTEN liegt die Skyscraper Weggabelung. Nach SÜDEN führt die Straße weiter.',
-        'exits': {'westen': 'skyscraper_weggabelung', 'süden': 'östliche_skyscraper2_straße'},
+        'description': 'Eine Weggabelung im Schatten der Hochhäuser. Im WESTEN liegt die Skyscraper Weggabelung. Nach SÜDEN die Skyscraper2-Straße. Im OSTEN führt der Weg zum Times Square.',
+        'exits': {'westen': 'skyscraper_weggabelung', 'süden': 'östliche_skyscraper2_straße', 'osten': 'timesquare'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1345,10 +1349,11 @@ rooms = {
         'spawn_chance': False,
         'zombie_spawn': False
     },
-    'südliche_pizzeria_straße': {#Stadt
+    'südliche_pizzeria_straße': {  # Idea-Map: Pizzeria (R5C4)
         'name': 'Südliche Pizzeria Straße',
-        'description': 'Eine Straße südlich der Pizzeria. Im OSTEN liegt die Skyscraper Weggabelung. Nach WESTEN geht es zur Home Depot Weggabelung Osten.',
-        'exits': {'osten': 'skyscraper_weggabelung', 'westen': 'home_depot_weggabelung_osten'},
+        'description': 'Eine Straße südlich der Pizzeria. Im NORDEN der Skyscraper 1, im SÜDEN die Feuerwehr, im WESTEN das Casino.',
+        # Grid: R5C4. Norden=Skyscraper1(R4C5) via skyscraper_weggabelung. Süden=Feuerwehr(R6C4). Westen=Casino(R5C3). Osten=R5C5=leer.
+        'exits': {'norden': 'skyscraper_weggabelung', 'westen': 'casino_eingang', 'süden': 'feuerwehr_eingang'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1403,6 +1408,15 @@ rooms = {
         'name': 'Home Depot Weggabelung West Nord',
         'description': 'Eine Weggabelung an der Nordwestseite des Home Depot. Im SÜDEN liegt die Home Depot Weggabelung West. Nach OSTEN führt die Home Depot Straße Nord.',
         'exits': {'süden': 'home_depot_straße_west', 'osten': 'home_depot_straße_nord'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'home_depot_weggabelung_nord_west': {#Stadt
+        'name': 'Home Depot Weggabelung Nord West',
+        'description': 'Eine Weggabelung an der Nordwestseite des Home Depot. Im OSTEN führt die Home Depot Straße Nord weiter. Nach SÜDEN geht es zur Home Depot Straße West.',
+        'exits': {'osten': 'home_depot_straße_nord', 'süden': 'home_depot_straße_west'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1501,10 +1515,11 @@ rooms = {
         'items': [],
         'in_development': True
     },
-    'haus2': {#Haus2
+    'haus2': {  # Idea-Map: House 2 (R2C5) — between Spawn and Waterpark
         'name': 'Haus 2',
-        'description': 'Du stehst vor einem verlassenen Haus. Die Tür ist verriegelt, durch die zerbrochenen Fenster siehst du nur Dunkelheit.',
-        'exits': {'westen': 'östliche_straße'},
+        'description': 'Du stehst vor einem verlassenen Haus. Die Tür ist verriegelt, durch die zerbrochenen Fenster siehst du nur Dunkelheit. Im WESTEN führt die östliche Straße zurück zum Spawn-Bereich. Im OSTEN führt der Weg zum Wasserpark.',
+        # Grid: R2C5. Westen=Spawn-Bereich(R2C4 via östliche_straße), Osten=Waterpark(R2C6).
+        'exits': {'westen': 'östliche_straße', 'osten': 'waterpark_eingang'},
         'items': [],
         'in_development': True
     },
@@ -1517,10 +1532,11 @@ rooms = {
         'spawn_chance': False,
         'zombie_spawn': False
     },
-    'home_depot_weggabelung_nord_ost': {#Stadt
+    'home_depot_weggabelung_nord_ost': {  # Idea-Map: Home Depot anchor (R3C3)
         'name': 'Home Depot Weggabelung Nord Ost',
-        'description': 'Eine breite Straße an der Nordostseite des Home Depot. Im OSTEN liegt die Pizzeria Straße. Nach WESTEN führt die Home Depot Straße Nord. Im NORDEN geht es zur Krankenhaus Straße.',
-        'exits': {'osten': 'straße_pizzeria', 'westen': 'home_depot_straße_nord', 'norden': 'krankenhaus_straße'},
+        'description': 'Eine breite Straße an der Nordostseite des Home Depot. Im OSTEN die Pizzeria Straße. Nach SÜDWESTEN die Home Depot Straße Nord. Im NORDEN das Krankenhaus. Im WESTEN das Laboratory.',
+        # Grid: R3C3. Norden=Krankenhaus(R2C3 via krankenhaus_straße), Westen=Lab(R3C2), Osten=Pizzeria-area.
+        'exits': {'osten': 'straße_pizzeria', 'südwesten': 'home_depot_straße_nord', 'norden': 'krankenhaus_straße', 'westen': 'lab_eingang'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1546,17 +1562,23 @@ rooms = {
     # ========================================================================
     # MAP-INTEGRATION: All districts from Excalidraw map (40+ new districts)
     # ========================================================================
-    'noerdlich_walmart_straße': {  # NEW (map integration)
+    'noerdlich_walmart_straße': {  # NEW (map integration) — gridcell R0/R1 between Walmart & Beach
         'name': 'Nördliche Walmart-Straße',
-        'description': 'Nördlich des Walmart-Parkplatzes biegt eine breite Straße ab. Im SÜDWESTEN siehst du den Parkplatz. Im NORDEN führt die Straße zum Strand. Nach NORDOSTEN siehst du das Bruce Wayne Manor. Nach NORDWESTEN steht das Mickey Mouse Club House.',
-        'exits': {'südwesten': 'parkplatz', 'norden': 'strand_straße', 'nordosten': 'bruce_wayne_straße', 'nordwesten': 'mickey_mouse_straße'},
+        'description': 'Nördlich des Walmart-Parkplatzes biegt eine breite Straße ab. Im SÜDEN siehst du den Parkplatz. Im NORDEN führt die Straße zum Strand.',
+        # Grid: Walmart (R1C5) ↔ Beach (R0C5). Mickey (R0C0) + Bruce Wayne (R0C8)
+        # gehören NICHT in die Nähe — sie wurden hier irrtümlich angedockt.
+        # Mickey ist nur über Puente Juanchito → westliche Wald-Insel erreichbar.
+        # Bruce Wayne ist über die Ost-Reihe (Bank/Amusement) erreichbar.
+        'exits': {'süden': 'parkplatz', 'norden': 'strand_straße'},
         'items': [],
         'in_development': True,
     },
-    'mickey_mouse_straße': {  # NEW (map integration)
+    'mickey_mouse_straße': {  # Idea-Map: ON the western enclave (R0C0 outside Mickey)
         'name': 'Mickey Mouse Straße',
-        'description': 'Eine bunte Straße führt zu einem skurrilen runden Gebäude mit zwei riesigen schwarzen Ohren auf dem Dach. Im OSTEN führt die Straße zur nördlichen Walmart-Straße. Im NORDEN ist der Eingang zum Mickey Mouse Club House.',
-        'exits': {'osten': 'noerdlich_walmart_straße', 'norden': 'mickey_mouse_eingang'},
+        'description': 'Eine bunte Straße führt zu einem skurrilen runden Gebäude mit zwei riesigen schwarzen Ohren auf dem Dach. Im NORDEN ist der Eingang zum Mickey Mouse Club House. Im SÜDEN führt der Pfad tiefer in die westliche Wildnis, Richtung Puente Juanchito. Im NORDOSTEN beginnt der Wald-Pfad.',
+        # Grid: R0C0. Nachbarn: nichts im Norden/Westen, OSTEN ist Wald (R0C1, dann River), SÜDEN ist Wald (R1C0).
+        # Erreichbar nur über Puente Juanchito → wald_west_zugang. wald_norden = kleine Wald-Schleife.
+        'exits': {'norden': 'mickey_mouse_eingang', 'süden': 'wald_west_zugang', 'nordosten': 'wald_norden'},
         'items': [],
         'in_development': True,
     },
@@ -1581,32 +1603,38 @@ rooms = {
         'items': ['kinderbuch'],
         'in_development': True,
     },
-    'strand_straße': {  # NEW (map integration)
+    'strand_straße': {  # Sub-street between Walmart-North and Beach
         'name': 'Strand Straße',
-        'description': 'Eine sandige Straße zum Meer. Palmen säumen den Weg. Im SÜDEN führt die Straße zurück zum Walmart. Im NORDEN ist der Strand. Im OSTEN siehst du eine Holzbrücke über einen Fluss.',
-        'exits': {'süden': 'noerdlich_walmart_straße', 'norden': 'strand', 'osten': 'strand_brücke'},
+        'description': 'Eine sandige Straße zum Meer. Palmen säumen den Weg. Im SÜDEN führt die Straße zurück zur nördlichen Walmart-Straße. Im NORDEN ist der Strand.',
+        'exits': {'süden': 'noerdlich_walmart_straße', 'norden': 'strand'},
         'items': [],
         'in_development': True,
     },
-    'strand': {  # NEW (map integration)
+    'strand': {  # Idea-Map: Beach (R0C5) — coast just north of Walmart
         'name': 'Strand',
-        'description': 'Du stehst am Strand. Sand unter den Füßen, das Meer rauscht im Norden. Sonnenschirme, ein verlassener Lifeguard-Turm, Sandburgen. Im SÜDEN führt die Strand-Straße zurück.',
-        'exits': {'süden': 'strand_straße'},
+        'description': 'Du stehst am Strand. Sand unter den Füßen, das Meer rauscht im Norden. Sonnenschirme, ein verlassener Lifeguard-Turm, Sandburgen. Im SÜDEN führt die Strand-Straße zurück. Im OSTEN spannt sich eine Holzbrücke über das Wasser.',
+        # Grid: R0C5. Süden = Walmart (R1C5) via strand_straße sub-street. Osten = Beach/Bridge (R0C6).
+        'exits': {'süden': 'strand_straße', 'osten': 'strand_brücke'},
         'items': ['muschel', 'sonnencreme'],
         'in_development': True,
         'first_visit': True,
     },
-    'strand_brücke': {  # NEW (map integration)
+    'strand_brücke': {  # Idea-Map: Beach/Bridge (R0C6) — between Beach and Amusement Park
         'name': 'Strand / Brücke',
-        'description': 'Eine lange Holzbrücke spannt sich über einen Fluss. Boote treiben unter dir. Im WESTEN führt die Brücke zurück zum Strand. Im OSTEN über die Brücke kommt man zum Bruce Wayne Anwesen.',
-        'exits': {'westen': 'strand_straße', 'osten': 'bruce_wayne_straße'},
+        'description': 'Eine lange Holzbrücke spannt sich über einen Fluss. Boote treiben unter dir. Im WESTEN führt die Brücke zurück zum Strand. Im OSTEN gelangt man zum Vergnügungspark.',
+        # Grid: R0C6. Direkte Nachbarn: Strand (R0C5) im Westen, Amusement (R0C7) im Osten.
+        # Bruce Wayne (R0C8) liegt eine Zelle weiter östlich — über Amusement erreichbar.
+        'exits': {'westen': 'strand', 'osten': 'amusement_eingang'},
         'items': [],
         'in_development': True,
     },
-    'bruce_wayne_straße': {  # NEW (map integration)
+    'bruce_wayne_straße': {  # Idea-Map: street outside Bruce Wayne Manor (R0C8)
         'name': 'Bruce Wayne Straße',
-        'description': 'Eine majestätische Allee. Marmorstatuen am Wegesrand. Im WESTEN führt sie zur Brücke. Im SÜDWESTEN zur nördlichen Walmart-Straße. Im NORDEN steht das gewaltige Bruce Wayne Manor.',
-        'exits': {'westen': 'strand_brücke', 'südwesten': 'noerdlich_walmart_straße', 'norden': 'bruce_wayne_eingang'},
+        'description': 'Eine majestätische Allee. Marmorstatuen am Wegesrand. Im NORDEN steht das gewaltige Bruce Wayne Manor. Im WESTEN führt die Allee am Vergnügungspark vorbei.',
+        # Grid: R0C8 (corner cell). Westen = Amusement (R0C7). Süden = Batcave (R2C8) —
+        # aber Batcave ist eine Höhle UNTER dem Manor, also keine Straßenverbindung.
+        # Walmart/Strand-Brücke wurden hier irrtümlich angedockt — entfernt.
+        'exits': {'norden': 'bruce_wayne_eingang', 'westen': 'amusement_eingang'},
         'items': [],
         'in_development': True,
     },
@@ -1673,31 +1701,35 @@ rooms = {
         'items': ['sandsack'],
         'in_development': True,
     },
-    'wald_nordwest': {  # NEW (map integration)
+    'wald_nordwest': {  # Western enclave: Forest patch north of Mickey
         'name': 'Wald - Nordwesten',
-        'description': 'Ein dichter Mischwald. Pinien und Laubbäume, Pilze am Boden. Ein schmaler Pfad führt durch.',
-        'exits': {'osten': 'wald_norden', 'südosten': 'noerdlich_walmart_straße'},
+        'description': 'Ein dichter Mischwald. Pinien und Laubbäume, Pilze am Boden. Ein schmaler Pfad führt nach OSTEN tiefer in den Wald.',
+        # Now: small forest loop on the Mickey-island (no longer connected to Walmart-Nord).
+        'exits': {'osten': 'wald_norden'},
         'items': ['pilz', 'beere'],
         'in_development': True,
     },
-    'wald_norden': {  # NEW (map integration)
+    'wald_norden': {  # Western enclave: Forest center, near Mickey
         'name': 'Wald - Norden',
-        'description': 'Mitten im Wald. Tiefe Schatten, das Rauschen von Blättern. Ein Pfad führt nach OSTEN zum Fluss-Wald, nach WESTEN zum Nord-West-Wald.',
+        'description': 'Mitten im Wald. Tiefe Schatten, das Rauschen von Blättern. Pfad nach OSTEN zum Fluss-Wald, WESTEN zum Nord-West-Wald, SÜDEN zur Mickey-Mouse-Straße.',
         'exits': {'osten': 'wald_fluss', 'westen': 'wald_nordwest', 'süden': 'mickey_mouse_straße'},
         'items': ['holz', 'beere'],
         'in_development': True,
     },
-    'wald_fluss': {  # NEW (map integration)
+    'wald_fluss': {  # Western enclave: Forest river dead-end
         'name': 'Wald / Fluss',
-        'description': 'Ein Fluss schlängelt sich durch den Wald. Klares Wasser, wo man trinken könnte. Trittsteine führen über den Fluss.',
-        'exits': {'westen': 'wald_norden', 'osten': 'strand_straße'},
+        'description': 'Ein Fluss schlängelt sich durch den Wald. Klares Wasser, wo man trinken könnte. Trittsteine führen nirgendwo hin — die andere Uferseite ist undurchdringliches Unterholz.',
+        # Dead-end on the western enclave. Used to lead east to Strand-Straße — that crossed the
+        # entire map. Now west-only loop with wald_norden ↔ wald_nordwest.
+        'exits': {'westen': 'wald_norden'},
         'items': ['frisches_wasser'],
         'in_development': True,
     },
-    'berg': {  # NEW (map integration)
+    'berg': {  # Idea-Map: Mountain (R7C2) — south island, between rivers
         'name': 'Berg',
-        'description': 'Du stehst am Fuß eines schneebedeckten Berges. Felsige Hänge, Pinien, ein Höhleneingang im Süden. Eine Klettergurt-Linie führt nach oben. Eine Berghütte siehst du im Osten.',
-        'exits': {'süden': 'berg_höhle', 'osten': 'berg_hütte', 'südosten': 'wald_nordwest'},
+        'description': 'Du stehst am Fuß eines schneebedeckten Berges. Felsige Hänge, Pinien, ein Höhleneingang im SÜDWESTEN. Eine Berghütte siehst du im SÜDOSTEN. Im OSTEN führt der Weg zum Prison.',
+        # Grid: R7C2. Osten=Prison(R7C3). R7C1=R6C2=River. Erreichbar nur via Prison.
+        'exits': {'osten': 'prison_eingang', 'südwesten': 'berg_höhle', 'südosten': 'berg_hütte'},
         'items': ['kletterausrüstung'],
         'in_development': True,
     },
@@ -1715,10 +1747,12 @@ rooms = {
         'items': ['decken', 'taschenlampe'],
         'in_development': True,
     },
-    'amusement_eingang': {  # NEW (map integration)
+    'amusement_eingang': {  # Idea-Map: Amusement Park (R0C7)
         'name': 'Amusement Park - Eingang',
-        'description': 'Bunte Lichter, Lautsprecher krächzen kaputte Musik, ein gewaltiges Riesenrad steht still. Im SÜDEN führt der Weg zur Bruce Wayne Straße. Im NORDEN das Riesenrad, OSTEN die Achterbahn, WESTEN das Karussell.',
-        'exits': {'süden': 'bruce_wayne_straße', 'norden': 'amusement_riesenrad', 'osten': 'amusement_achterbahn', 'westen': 'amusement_karussell'},
+        'description': 'Bunte Lichter, Lautsprecher krächzen kaputte Musik, ein gewaltiges Riesenrad steht still. Im OSTEN führt der Weg zur Bruce Wayne Straße. Im NORDEN das Riesenrad, NORDOSTEN die Achterbahn, WESTEN das Karussell.',
+        # Grid: R0C7. Nachbar Osten = Bruce Wayne Manor (R0C8). Westen = Beach/Bridge (R0C6).
+        # Achterbahn auf nordosten verschoben damit osten für Bruce Wayne frei ist.
+        'exits': {'osten': 'bruce_wayne_straße', 'westen': 'strand_brücke', 'norden': 'amusement_riesenrad', 'nordosten': 'amusement_achterbahn', 'südwesten': 'amusement_karussell'},
         'items': ['ticket'],
         'in_development': True,
     },
@@ -1732,42 +1766,43 @@ rooms = {
     'amusement_achterbahn': {  # NEW (map integration)
         'name': 'Roller Coaster',
         'description': 'Verzerrte Schienen, ein einsamer Wagen. Zickzack-Konstruktion, halb eingestürzt.',
-        'exits': {'westen': 'amusement_eingang'},
+        'exits': {'südwesten': 'amusement_eingang'},
         'items': ['wagen_teil'],
         'in_development': True,
     },
     'amusement_karussell': {  # NEW (map integration)
         'name': 'Carousel',
         'description': 'Ein Karussell mit hölzernen Pferden. Rosa Dach. Es dreht sich nicht mehr. Stille.',
-        'exits': {'osten': 'amusement_eingang'},
+        'exits': {'nordosten': 'amusement_eingang'},
         'items': ['holzpferd'],
         'in_development': True,
     },
-    'joestar_eingang': {  # NEW (map integration)
+    'joestar_eingang': {  # Idea-Map: Joestar Mansion (R3C8)
         'name': 'Joestar Mansion - Grand Hall',
-        'description': 'Eine elegante Halle. Treppe nach oben, Statue eines Stand-Posenden im Wohnzimmer-Ausgang. Im SÜDEN führt es nach draußen. Im OSTEN die Küche. Im WESTEN das Wohnzimmer. Im NORDEN die Schlafzimmer-Reihe.',
-        'exits': {'süden': 'oestlich_park_erweiterung', 'osten': 'joestar_küche', 'westen': 'joestar_wohnzimmer', 'norden': 'joestar_jonathan'},
+        'description': 'Eine elegante Halle. Treppe nach oben, Statue eines Stand-Posenden im Wohnzimmer-Ausgang. Im NORDEN die Batcave, im WESTEN das Cinema, im SÜDEN die Discotec. NORDOSTEN die Küche, NORDWESTEN das Wohnzimmer, SÜDOSTEN die Schlafzimmer-Reihe.',
+        # Grid: R3C8. Norden=Batcave(R2C8), Westen=Cinema(R3C7), Süden=Discotec(R4C8).
+        'exits': {'norden': 'batcave_garage', 'westen': 'cinema_eingang', 'süden': 'disco_eingang', 'nordosten': 'joestar_küche', 'nordwesten': 'joestar_wohnzimmer', 'südosten': 'joestar_jonathan'},
         'items': ['stand_arrow'],
         'in_development': True,
     },
     'joestar_wohnzimmer': {  # NEW (map integration)
         'name': 'Joestar - Wohnzimmer',
         'description': 'Reich braune Couches, roter Teppich, ein Couchtisch. Eine Statue posiert "menacingly" in der Ecke.',
-        'exits': {'osten': 'joestar_eingang'},
+        'exits': {'südosten': 'joestar_eingang'},
         'items': ['statue'],
         'in_development': True,
     },
     'joestar_küche': {  # NEW (map integration)
         'name': 'Joestar - Küche',
         'description': 'Eine professionelle Küche mit großem Esstisch. Hier wurde sicher viel gegessen.',
-        'exits': {'westen': 'joestar_eingang'},
+        'exits': {'südwesten': 'joestar_eingang'},
         'items': ['kochmesser'],
         'in_development': True,
     },
     'joestar_jonathan': {  # NEW (map integration)
         'name': 'Joestar - Jonathans Zimmer',
         'description': '"HAMON!" steht an der Wand gemalt. Antikes Zimmer, viktorianisch eingerichtet.',
-        'exits': {'süden': 'joestar_eingang', 'osten': 'joestar_jotaro', 'westen': 'joestar_joseph'},
+        'exits': {'nordwesten': 'joestar_eingang', 'osten': 'joestar_jotaro', 'westen': 'joestar_joseph'},
         'items': ['hamon_buch'],
         'in_development': True,
     },
@@ -1785,24 +1820,26 @@ rooms = {
         'items': ['stand_disc'],
         'in_development': True,
     },
-    'pollos_eingang': {  # NEW (map integration)
+    'pollos_eingang': {  # Idea-Map: Sanchéz / Los Pollos (R1C6)
         'name': 'Los Pollos Hermanos',
-        'description': 'Ein Hühnchen-Restaurant mit gelber Fassade und rotem Schriftzug. Tische mit Stühlen, Kassen am Tresen. Im SÜDEN nach draußen. Im NORDEN die Küche - dort scheint sich eine seltsame Tür zu verstecken...',
-        'exits': {'süden': 'oestlich_park_erweiterung', 'norden': 'pollos_küche'},
+        'description': 'Ein Hühnchen-Restaurant mit gelber Fassade und rotem Schriftzug. Tische mit Stühlen, Kassen am Tresen. Im SÜDEN der Wasserpark, im WESTEN der Walmart, im NORDEN die Strand-Brücke. NORDOSTEN die Küche.',
+        # Grid: R1C6. Süden=Waterpark(R2C6), Westen=Walmart(R1C5), Norden=BeachBridge(R0C6). R1C7 leer.
+        'exits': {'süden': 'waterpark_eingang', 'westen': 'walmart_eingang', 'norden': 'strand_brücke', 'nordosten': 'pollos_küche'},
         'items': ['hühnchen_box', 'frittiertes'],
         'in_development': True,
     },
     'pollos_küche': {  # NEW (map integration)
         'name': 'Pollos Hermanos - Küche',
         'description': 'Vier Fritteusen, ein riesiger Grill, ein Walk-In-Kühlschrank. In der Ecke: eine grüne Tür mit rotem Rand und einem "?" - eine Geheimtür.',
-        'exits': {'süden': 'pollos_eingang'},
+        'exits': {'südwesten': 'pollos_eingang'},
         'items': ['rotes_pulver'],
         'in_development': True,
     },
-    'casino_eingang': {  # NEW (map integration)
+    'casino_eingang': {  # Idea-Map: Casino (R5C3)
         'name': 'Casino - Eingang',
-        'description': 'Lila-goldene Fassade, "CASINO" in roter Neonschrift. Drinnen klingen Slot-Maschinen aus alter Zeit nach. Im SÜDEN ist die Straße. Im NORDEN ist der Casino-Floor.',
-        'exits': {'süden': 'oestlich_park_erweiterung', 'norden': 'casino_floor'},
+        'description': 'Lila-goldene Fassade, "CASINO" in roter Neonschrift. Drinnen klingen Slot-Maschinen aus alter Zeit nach. Im OSTEN die Pizzeria-Straße, im SÜDEN die Landschaft. NORDEN ist der Casino-Floor.',
+        # Grid: R5C3. Osten=Pizzeria(R5C4), Süden=Landschaft(R6C3). R5C2=R4C3 (lab_chemie) — lab_chemie norden ergänzen.
+        'exits': {'osten': 'südliche_pizzeria_straße', 'süden': 'landschaft', 'norden': 'casino_floor'},
         'items': ['casino_chip'],
         'in_development': True,
     },
@@ -1827,10 +1864,11 @@ rooms = {
         'items': ['bargeld', 'goldbarren'],
         'in_development': True,
     },
-    'stark_lobby': {  # NEW (map integration)
+    'stark_lobby': {  # Idea-Map: Stark Tower (R7C5) — south corridor center
         'name': 'Stark Tower - Lobby (F1)',
-        'description': 'Eine moderne Lobby. Empfangstheke, Couches, drei Fahrstühle. In der Mitte eine rote Iron-Man-Statue. Im SÜDEN nach draußen. HOCH zum Lab.',
-        'exits': {'süden': 'oestlich_park_erweiterung', 'hoch': 'stark_lab'},
+        'description': 'Eine moderne Lobby. Empfangstheke, Couches, drei Fahrstühle. In der Mitte eine rote Iron-Man-Statue. Im WESTEN die Storage Units, im OSTEN der City Bunker. Im NORDEN führt der Weg zum Stadium. HOCH zum Lab.',
+        # Grid: R7C5. Storage (R7C4) west, Bunker (R7C6) ost. Stadium (R6C5) norden.
+        'exits': {'westen': 'storage_eingang', 'osten': 'bunker_eingang', 'norden': 'stadium_eingang', 'hoch': 'stark_lab'},
         'items': ['stark_keycard'],
         'in_development': True,
     },
@@ -1862,38 +1900,40 @@ rooms = {
         'items': ['kompass'],
         'in_development': True,
     },
-    'cinema_eingang': {  # NEW (map integration)
+    'cinema_eingang': {  # Idea-Map: Cinema (R3C7)
         'name': 'Cinema - Lobby',
-        'description': 'Eine schwarze Halle mit Popcorn-Stand und Ticket-Booth. Filmposter: Action, Comedy, Horror. Im SÜDEN nach draußen. Im OSTEN Saal 1, im WESTEN Saal 2.',
-        'exits': {'süden': 'oestlich_park_erweiterung', 'osten': 'cinema_saal1', 'westen': 'cinema_saal2'},
+        'description': 'Eine schwarze Halle mit Popcorn-Stand und Ticket-Booth. Filmposter: Action, Comedy, Horror. Im NORDEN die Town Hall, im OSTEN die Joestar Mansion, im SÜDEN die University. NORDWESTEN Saal 1, NORDOSTEN Saal 2.',
+        # Grid: R3C7. Norden=TownHall(R2C7), Osten=Joestar(R3C8), Süden=University(R4C7). Westen=R3C6 leer.
+        'exits': {'norden': 'town_hall_eingang', 'osten': 'joestar_eingang', 'süden': 'university_eingang', 'nordwesten': 'cinema_saal1', 'nordosten': 'cinema_saal2'},
         'items': ['popcorn', 'ticket'],
         'in_development': True,
     },
     'cinema_saal1': {  # NEW (map integration)
         'name': 'Cinema - Saal 1',
         'description': 'Sechs Reihen mit acht roten Sesseln. Eine riesige Leinwand zeigt ein eingefrorenes "NOW PLAYING".',
-        'exits': {'westen': 'cinema_eingang'},
+        'exits': {'südosten': 'cinema_eingang'},
         'items': ['popcorn'],
         'in_development': True,
     },
     'cinema_saal2': {  # NEW (map integration)
         'name': 'Cinema - Saal 2',
         'description': 'Zwischen den Sesselreihen liegt vergessenes Popcorn. Die Leinwand zeigt "🎥 PREMIERE 🎥".',
-        'exits': {'osten': 'cinema_eingang'},
+        'exits': {'südwesten': 'cinema_eingang'},
         'items': ['popcorn'],
         'in_development': True,
     },
-    'disco_eingang': {  # NEW (map integration)
+    'disco_eingang': {  # Idea-Map: Discotec (R4C8) — east edge
         'name': 'Discotec - Eingang',
-        'description': 'Schwarzes Gebäude mit lila Akzenten. Im SÜDEN nach draußen. Im NORDEN die Tanzfläche.',
-        'exits': {'süden': 'oestlich_skyscraper2_erweiterung', 'norden': 'disco_tanzfläche'},
+        'description': 'Schwarzes Gebäude mit lila Akzenten. Im SÜDEN führt der Weg zu Doofenshmirtz Evil Inc. Im NORDEN die Tanzfläche.',
+        # Grid: R4C8. Süden = Doof (R5C8). Norden ist Tanzfläche (interner Raum, soll auf Diagonal).
+        'exits': {'süden': 'doof_eingang', 'nordosten': 'disco_tanzfläche'},
         'items': ['vip_pass'],
         'in_development': True,
     },
     'disco_tanzfläche': {  # NEW (map integration)
         'name': 'Discotec - Tanzfläche',
-        'description': 'Bunte Tanzflächenkacheln. Eine Disco-Kugel hängt von der Decke. Im SÜDEN der Eingang, im NORDEN die DJ-Booth, im WESTEN der VIP-Bereich, im OSTEN die Bar.',
-        'exits': {'süden': 'disco_eingang', 'norden': 'disco_dj', 'westen': 'disco_vip', 'osten': 'disco_bar'},
+        'description': 'Bunte Tanzflächenkacheln. Eine Disco-Kugel hängt von der Decke. Im SÜDWESTEN der Eingang, im NORDEN die DJ-Booth, im WESTEN der VIP-Bereich, im OSTEN die Bar.',
+        'exits': {'südwesten': 'disco_eingang', 'norden': 'disco_dj', 'westen': 'disco_vip', 'osten': 'disco_bar'},
         'items': ['leuchtstab'],
         'in_development': True,
     },
@@ -1918,10 +1958,11 @@ rooms = {
         'items': ['cocktail'],
         'in_development': True,
     },
-    'timesquare': {  # NEW (map integration)
+    'timesquare': {  # Idea-Map: Times Square (R4C6)
         'name': 'Time Square',
-        'description': 'Eine gewaltige Kreuzung. Vier Wolkenkratzer mit gigantischen Werbetafeln (COCA, NIKE, SAMSUNG, McD). Stillstehende Autos, eine Ampel, ein riesiger LED-Bildschirm zeigt "LIVE NEWS".',
-        'exits': {'norden': 'oestlich_skyscraper2_erweiterung', 'süden': 'oestlich_skyscraper2_erweiterung_süd'},
+        'description': 'Eine gewaltige Kreuzung. Vier Wolkenkratzer mit gigantischen Werbetafeln (COCA, NIKE, SAMSUNG, McD). Stillstehende Autos, eine Ampel, ein riesiger LED-Bildschirm zeigt "LIVE NEWS". Im WESTEN die Skyscraper-Weggabelung, im OSTEN die Universität.',
+        # Grid: R4C6. Westen=Skyscraper1(R4C5), Osten=University(R4C7), Süden=Skyscraper2(R5C6), Norden=R3C6 leer.
+        'exits': {'westen': 'süd_östliche_skyscraper_weggabelung', 'osten': 'university_eingang', 'süden': 'westliche_skyscraper2_weggabelung'},
         'items': ['werbetafel_teil'],
         'in_development': True,
     },
@@ -1939,94 +1980,109 @@ rooms = {
         'items': ['frisches_wasser'],
         'in_development': True,
     },
-    'oestlich_park_erweiterung': {  # NEW (map integration)
+    'oestlich_park_erweiterung': {  # DEPRECATED former hub
         'name': 'Östliche Park-Erweiterung',
-        'description': 'Eine breite Straße östlich des Parks. Im NORDWESTEN ist die Park-Straße. Im OSTEN siehst du die Joestar Mansion. Nach NORDEN führt ein Weg zu los pollos hermanos, nach SÜDOSTEN zum Casino.',
-        'exits': {'nordwesten': 'park_straße', 'osten': 'joestar_eingang', 'norden': 'pollos_eingang', 'südosten': 'casino_eingang', 'süden': 'stark_lobby', 'südwesten': 'cinema_eingang'},
+        'description': 'Eine vergessene breite Straße. Im WESTEN führt der Weg zur Park-Straße. (Diese Straße führt nirgendwo mehr hin — die östlichen Distrikte hängen jetzt direkt zusammen.)',
+        # DEPRECATED. Used to fan out to Pollos/Casino/Cinema/Joestar/Stark — all now grid-wired.
+        'exits': {'westen': 'park_straße'},
         'items': [],
         'in_development': True,
+        'deprecated': True,
     },
-    'oestlich_skyscraper2_erweiterung': {  # NEW (map integration)
+    'oestlich_skyscraper2_erweiterung': {  # DEPRECATED former hub
         'name': 'Östliche Skyscraper2-Erweiterung',
-        'description': 'Eine breite Straße. Im WESTEN ist der Skyscraper 2. Im OSTEN der östliche Wald. Im SÜDEN die Discotec, NORDEN Time Square.',
-        'exits': {'westen': 'östliche_skyscraper2_straße', 'osten': 'wald_osten', 'süden': 'disco_eingang', 'norden': 'timesquare'},
+        'description': 'Eine vergessene breite Straße. Im WESTEN die Skyscraper 2-Hauptstraße. (Erweiterungen wurden aufgelöst.)',
+        # DEPRECATED. Used to fan out to wald_osten/disco/timesquare — disco now in R5C8 column.
+        'exits': {'westen': 'östliche_skyscraper2_straße'},
         'items': [],
         'in_development': True,
+        'deprecated': True,
     },
-    'oestlich_skyscraper2_erweiterung_süd': {  # NEW (map integration)
+    'oestlich_skyscraper2_erweiterung_süd': {  # DEPRECATED former hub
         'name': 'Östliche Skyscraper2-Erweiterung - Süd',
-        'description': 'Weiter südlich der Skyscraper2-Erweiterung. Im NORDEN die Discotec/Time Square. Im OSTEN der Fluss-Wald. Nach WESTEN gehts weiter im Stadtbereich.',
-        'exits': {'norden': 'timesquare', 'osten': 'wald_fluss_osten', 'westen': 'südlich_skyscraper2_straße'},
+        'description': 'Eine vergessene Straße. Im NORDEN die Skyscraper2-Straße zurück.',
+        # DEPRECATED.
+        'exits': {'norden': 'oestlich_skyscraper2_erweiterung'},
         'items': [],
         'in_development': True,
+        'deprecated': True,
     },
-    'westlich_krankenhaus_erweiterung': {  # NEW (map integration)
+    'westlich_krankenhaus_erweiterung': {  # DEPRECATED — fully isolated dead-end
         'name': 'Westliche Krankenhaus-Erweiterung',
-        'description': 'Eine Straße führt weiter westwärts vom Stadtbereich. Im OSTEN führt der Weg zurück zur westlichen Haus-Gabelung. Im WESTEN das Maze, im SÜDEN der Friedhof, im NORDEN das Town Hall.',
-        'exits': {'osten': 'westliche_haus_gabelung', 'westen': 'maze_eingang', 'süden': 'friedhof_eingang', 'norden': 'town_hall_eingang'},
+        'description': 'Eine vergessene Straße. Verlassen, abgesperrt. Kein Weg führt mehr hier rein oder raus. (Distrikte wurden umverkabelt.)',
+        # DEPRECATED. No exits — completely isolated.
+        'exits': {},
         'items': [],
         'in_development': True,
+        'deprecated': True,
     },
-    'weiter_westlich_straße': {  # NEW (map integration)
+    'weiter_westlich_straße': {  # DEPRECATED former hub
         'name': 'Weiter Westliche Straße',
-        'description': 'Eine lange Westliche Straße. Im OSTEN die westliche Krankenhaus-Erweiterung. Im SÜDEN die Universität, im WESTEN das Waterpark, im NORDEN das Maze.',
-        'exits': {'osten': 'westlich_krankenhaus_erweiterung', 'süden': 'university_eingang', 'westen': 'waterpark_eingang', 'norden': 'maze_eingang'},
+        'description': 'Eine vergessene lange Straße. Im OSTEN die alte Erweiterungsstraße. (Distrikte wurden umverkabelt.)',
+        # DEPRECATED.
+        'exits': {'osten': 'westlich_krankenhaus_erweiterung'},
         'items': [],
         'in_development': True,
+        'deprecated': True,
     },
-    'westlich_süd_straße': {  # NEW (map integration)
+    'westlich_süd_straße': {  # DEPRECATED former hub
         'name': 'Westlich Südliche Straße',
-        'description': 'Im NORDEN die weiter westliche Straße. Im SÜDEN siehst du den Storage-Bereich. Im SÜDWESTEN die Feuerwehr, im NORDOSTEN die Bibliothek.',
-        'exits': {'norden': 'weiter_westlich_straße', 'osten': 'storage_eingang', 'süden': 'lab_eingang', 'südwesten': 'feuerwehr_eingang', 'nordwesten': 'sex_dungeon_eingang', 'westen': 'military_eingang'},
+        'description': 'Eine vergessene Straße. Im NORDEN die alte weiter-westliche Straße. (Military/Lab/Storage/Feuerwehr/SexDungeon hängen jetzt am Grid.)',
+        # DEPRECATED.
+        'exits': {'norden': 'weiter_westlich_straße'},
         'items': [],
         'in_development': True,
+        'deprecated': True,
     },
-    'maze_eingang': {  # NEW (map integration)
+    'maze_eingang': {  # Idea-Map: Maze (R6C1) — west island
         'name': 'Maze - Eingang',
-        'description': 'Hohe Hecken bilden einen Eingang. Eine grüne Tür. "Verirre dich nicht."',
-        'exits': {'osten': 'westlich_krankenhaus_erweiterung', 'norden': 'maze_zentrum', 'süden': 'weiter_westlich_straße'},
+        'description': 'Hohe Hecken bilden einen Eingang. Eine grüne Tür. "Verirre dich nicht." Im NORDEN der Friedhof, im WESTEN das Forest/House. NORDOSTEN das Maze-Zentrum.',
+        # Grid: R6C1. Norden=Friedhof(R5C1), Westen=WaldHaus(R6C0). R6C2=R7C1=River.
+        'exits': {'norden': 'friedhof_eingang', 'westen': 'wald_haus_eingang', 'nordosten': 'maze_zentrum'},
         'items': [],
         'in_development': True,
     },
     'maze_zentrum': {  # NEW (map integration)
         'name': 'Maze - Zentrum',
         'description': 'Du hast es geschafft! In der Mitte des Heckenlabyrinths steht ein leuchtendes Podest mit einer goldenen Trophäe.',
-        'exits': {'süden': 'maze_eingang'},
+        'exits': {'südwesten': 'maze_eingang'},
         'items': ['trophäe', 'goldener_schlüssel'],
         'in_development': True,
     },
-    'friedhof_eingang': {  # NEW (map integration)
+    'friedhof_eingang': {  # Idea-Map: Graveyard (R5C1) — west island
         'name': 'Friedhof - Eingang',
-        'description': 'Eisernes Tor, dahinter graues Gras. Reihen von Grabsteinen. Über dir kreischen Fledermäuse. Im NORDEN die westliche Krankenhaus-Erweiterung. Im SÜDEN die Krypta.',
-        'exits': {'norden': 'westlich_krankenhaus_erweiterung', 'süden': 'friedhof_krypta'},
+        'description': 'Eisernes Tor, dahinter graues Gras. Reihen von Grabsteinen. Über dir kreischen Fledermäuse. Im WESTEN die Lichtung. Im SÜDEN das Maze. SÜDOSTEN die Krypta.',
+        # Grid: R5C1. Westen=Lichtung(R5C0), Süden=Maze(R6C1). R4C1=R6C2=R5C2=River.
+        'exits': {'westen': 'tal_lichtung', 'süden': 'maze_eingang', 'südosten': 'friedhof_krypta'},
         'items': ['rose'],
         'in_development': True,
     },
     'friedhof_krypta': {  # NEW (map integration)
         'name': 'Friedhof - Krypta',
         'description': 'Eine düstere Krypta mit "CRYPT" über der Tür. Säulen, eine schwere schwarze Tür. Drinnen... wer weiß.',
-        'exits': {'norden': 'friedhof_eingang'},
+        'exits': {'nordwesten': 'friedhof_eingang'},
         'items': ['knochen', 'amulett'],
         'in_development': True,
     },
-    'town_hall_eingang': {  # NEW (map integration)
+    'town_hall_eingang': {  # Idea-Map: Town Hall (R2C7)
         'name': 'Town Hall - Eingang',
-        'description': 'Eine majestätische Treppe führt zwischen vier weißen Säulen zu einer großen blauen Tür. Hinein, ist die "Main Hall". Im NORDEN das Mayor\'s Office. Im OSTEN das Conference Room.',
-        'exits': {'süden': 'westlich_krankenhaus_erweiterung', 'norden': 'town_hall_office', 'osten': 'town_hall_conference'},
+        'description': 'Eine majestätische Treppe führt zwischen vier weißen Säulen zu einer großen blauen Tür. Im WESTEN der Wasserpark, im OSTEN die Batcave. Im SÜDEN das Cinema. NORDWESTEN das Mayor\'s Office, NORDOSTEN das Conference Room.',
+        # Grid: R2C7. Westen=Waterpark(R2C6), Osten=Batcave(R2C8), Süden=Cinema(R3C7). R1C7 leer.
+        'exits': {'westen': 'waterpark_eingang', 'osten': 'batcave_garage', 'süden': 'cinema_eingang', 'nordwesten': 'town_hall_office', 'nordosten': 'town_hall_conference'},
         'items': ['siegel'],
         'in_development': True,
     },
     'town_hall_office': {  # NEW (map integration)
         'name': "Town Hall - Mayor's Office",
         'description': 'Großer Mahagoni-Schreibtisch, zwei Couches, ein roter Teppich. Auszeichnungen an der Wand.',
-        'exits': {'süden': 'town_hall_eingang'},
+        'exits': {'südosten': 'town_hall_eingang'},
         'items': ['stadt_dokument', 'feder'],
         'in_development': True,
     },
     'town_hall_conference': {  # NEW (map integration)
         'name': 'Town Hall - Conference Room',
         'description': 'Großer Council-Tisch mit acht Stühlen. Eine Stadtkarte hängt an der Wand.',
-        'exits': {'westen': 'town_hall_eingang'},
+        'exits': {'südwesten': 'town_hall_eingang'},
         'items': ['stadt_karte'],
         'in_development': True,
     },
@@ -2051,52 +2107,55 @@ rooms = {
         'items': ['ramen', 'energieriegel'],
         'in_development': True,
     },
-    'waterpark_eingang': {  # NEW (map integration)
+    'waterpark_eingang': {  # Idea-Map: Waterpark (R2C6)
         'name': 'Waterpark - Eingang',
-        'description': 'Sand, Palmen, das Geräusch von Wasser. Im OSTEN ist die Straße. Im NORDEN der Hauptpool, OSTEN der Lazy River, WESTEN die Slides.',
-        'exits': {'osten': 'weiter_westlich_straße', 'norden': 'waterpark_pool', 'westen': 'waterpark_slides'},
+        'description': 'Sand, Palmen, das Geräusch von Wasser. Im WESTEN das Haus 2, im OSTEN die Town Hall. NORDOSTEN der Hauptpool, NORDWESTEN die Slides. NORDEN führt zu Sanchéz/Pollos.',
+        # Grid: R2C6. Westen=Haus2(R2C5), Osten=TownHall(R2C7), Norden=Pollos(R1C6).
+        'exits': {'westen': 'haus2', 'osten': 'town_hall_eingang', 'norden': 'pollos_eingang', 'nordosten': 'waterpark_pool', 'nordwesten': 'waterpark_slides'},
         'items': ['handtuch', 'sonnencreme'],
         'in_development': True,
     },
     'waterpark_pool': {  # NEW (map integration)
         'name': 'Waterpark - Hauptpool',
         'description': 'Riesiger blauer Pool mit Bahnen. Lazy River im Osten, ein Whirlpool im Süden, ein Kinderpool daneben.',
-        'exits': {'süden': 'waterpark_eingang'},
+        'exits': {'südwesten': 'waterpark_eingang'},
         'items': ['schwimmflossen'],
         'in_development': True,
     },
     'waterpark_slides': {  # NEW (map integration)
         'name': 'Waterpark - Slides',
         'description': 'Drei Wasserrutschen: rot, lila, grün. Eine Holz-Tower-Plattform.',
-        'exits': {'osten': 'waterpark_eingang'},
+        'exits': {'südosten': 'waterpark_eingang'},
         'items': ['rutsch_matte'],
         'in_development': True,
     },
-    'storage_eingang': {  # NEW (map integration)
+    'storage_eingang': {  # Idea-Map: Storage Units (R7C4) — south corridor
         'name': 'Storage Units - Eingang',
-        'description': '30 nummerierte Garagen mit Roll-Türen in verschiedenen Farben. Ein kleines Office am Eingang.',
-        'exits': {'westen': 'westlich_süd_straße'},
+        'description': '30 nummerierte Garagen mit Roll-Türen in verschiedenen Farben. Ein kleines Office am Eingang. Im WESTEN das Prison, im OSTEN der Stark Tower. Im NORDEN führt der Weg zur Feuerwehr.',
+        # Grid: R7C4. Süd-Korridor: Prison (R7C3) west, Stark (R7C5) ost. Norden = Feuerwehr (R6C4).
+        'exits': {'westen': 'prison_eingang', 'osten': 'stark_lobby', 'norden': 'feuerwehr_eingang'},
         'items': ['lager_schlüssel', 'kiste'],
         'in_development': True,
     },
-    'lab_eingang': {  # NEW (map integration)
+    'lab_eingang': {  # Idea-Map: Filtration / Lab (R3C2)
         'name': 'Laboratory - Eingang',
-        'description': 'Hellblaue Kacheln, "🧪 R&D 🔬" über der Tür. Drei Bereiche: Chemie, Biologie, Datacenter.',
-        'exits': {'norden': 'westlich_süd_straße', 'osten': 'lab_chemie', 'westen': 'lab_biologie', 'süden': 'lab_datacenter'},
+        'description': 'Hellblaue Kacheln, "🧪 R&D 🔬" über der Tür. Drei Bereiche: Chemie, Biologie, Datacenter. Im OSTEN führt der Weg zum Home Depot. Im NORDEN die Hacienda.',
+        # Grid: R3C2. Norden=Hacienda(R2C2), Osten=Home Depot(R3C3). R3C1=R4C2=River. R3C0=Feentaal — aber Feentaal ist über Forest erreichbar, nicht direkt.
+        'exits': {'norden': 'hacienda_eingang', 'osten': 'home_depot_weggabelung_nord_ost', 'nordosten': 'lab_chemie', 'nordwesten': 'lab_biologie', 'süden': 'lab_datacenter'},
         'items': ['lab_kittel'],
         'in_development': True,
     },
     'lab_chemie': {  # NEW (map integration)
         'name': 'Lab - Chemie',
         'description': 'Drei Bänke mit grünen Bechern, drei Fume Hoods. Ätzender Geruch.',
-        'exits': {'westen': 'lab_eingang'},
+        'exits': {'südwesten': 'lab_eingang'},
         'items': ['chemikalien', 'reagenz'],
         'in_development': True,
     },
     'lab_biologie': {  # NEW (map integration)
         'name': 'Lab - Biologie',
         'description': 'Mikroskope, Petri-Schalen, ein Specimen-Freezer.',
-        'exits': {'osten': 'lab_eingang'},
+        'exits': {'südosten': 'lab_eingang'},
         'items': ['mikroskop_objekt', 'serum'],
         'in_development': True,
     },
@@ -2107,45 +2166,48 @@ rooms = {
         'items': ['festplatte'],
         'in_development': True,
     },
-    'feuerwehr_eingang': {  # NEW (map integration)
+    'feuerwehr_eingang': {  # Idea-Map: Fire Department (R6C4)
         'name': 'Fire Department - Eingang',
-        'description': 'Rote Fassade, "FIRE DEPT." in gelben Buchstaben. Im NORDEN die Engine Bay, im OSTEN die Sleep Quarters, im SÜDOSTEN der Trainings-Tower.',
-        'exits': {'nordosten': 'westlich_süd_straße', 'norden': 'feuerwehr_garage', 'osten': 'feuerwehr_schlafraum', 'südosten': 'feuerwehr_training'},
+        'description': 'Rote Fassade, "FIRE DEPT." in gelben Buchstaben. Im WESTEN die Landschaft, im OSTEN das Stadium, im SÜDEN die Storage Units. NORDEN die Engine Bay (intern), NORDOSTEN die Sleep Quarters, NORDWESTEN der Trainings-Tower.',
+        # Grid: R6C4. Westen=Landschaft(R6C3), Osten=Stadium(R6C5), Süden=Storage(R7C4), Norden=Pizzeria(R5C4).
+        # Interne Räume auf Norden-Diagonalen, damit osten/süden/westen für Grid frei sind.
+        'exits': {'westen': 'landschaft', 'osten': 'stadium_eingang', 'süden': 'storage_eingang', 'norden': 'südliche_pizzeria_straße', 'nordwesten': 'feuerwehr_garage', 'nordosten': 'feuerwehr_schlafraum', 'südwesten': 'feuerwehr_training'},
         'items': ['feuerwehr_helm'],
         'in_development': True,
     },
     'feuerwehr_garage': {  # NEW (map integration)
         'name': 'Fire Dept - Engine Bay',
         'description': 'Drei rote Feuerwehrautos! Riesige Garagentore, Leitern an den Wänden. Zur Schlafzone führt eine Stange.',
-        'exits': {'süden': 'feuerwehr_eingang'},
+        'exits': {'südosten': 'feuerwehr_eingang'},
         'items': ['feuerwehr_axt', 'wasser_schlauch'],
         'in_development': True,
     },
     'feuerwehr_schlafraum': {  # NEW (map integration)
         'name': 'Fire Dept - Sleeping Quarters',
         'description': 'Sechs Betten in zwei Reihen. Eine gelbe Stange führt nach unten zur Engine Bay.',
-        'exits': {'westen': 'feuerwehr_eingang'},
+        'exits': {'südwesten': 'feuerwehr_eingang'},
         'items': ['decke'],
         'in_development': True,
     },
     'feuerwehr_training': {  # NEW (map integration)
         'name': 'Fire Dept - Training Tower',
         'description': 'Ein simulierter brennender Turm. Drei Stockwerke mit blauen Fenstern.',
-        'exits': {'nordwesten': 'feuerwehr_eingang'},
+        'exits': {'nordosten': 'feuerwehr_eingang'},
         'items': ['feuerwehr_jacke'],
         'in_development': True,
     },
-    'sex_dungeon_eingang': {  # NEW (map integration)
+    'sex_dungeon_eingang': {  # Idea-Map: Sex Dungeon (R7C0) — south-west corner
         'name': 'Sexdungeon - Eingang',
-        'description': 'Eine düstere Tür mit "🔞 18+ 🔞". Nicht für jeden. Lila Wände, gedämpftes Licht. Im NORDEN die Lounge, im SÜDEN... der Hauptraum.',
-        'exits': {'südosten': 'westlich_süd_straße', 'norden': 'sex_dungeon_lounge', 'süden': 'sex_dungeon_hauptraum'},
+        'description': 'Eine düstere Tür mit "🔞 18+ 🔞". Nicht für jeden. Lila Wände, gedämpftes Licht. Im NORDEN das Forest/House. NORDOSTEN die Lounge, SÜDEN der Hauptraum.',
+        # Grid: R7C0 (south-west corner). Norden = Forest/House (R6C0). R7C1 = River.
+        'exits': {'norden': 'wald_haus_eingang', 'nordosten': 'sex_dungeon_lounge', 'süden': 'sex_dungeon_hauptraum'},
         'items': [],
         'in_development': True,
     },
     'sex_dungeon_lounge': {  # NEW (map integration)
         'name': 'Sexdungeon - Lounge',
         'description': 'Pink-rote Lounge mit Sofas und Tisch.',
-        'exits': {'süden': 'sex_dungeon_eingang'},
+        'exits': {'südwesten': 'sex_dungeon_eingang'},
         'items': [],
         'in_development': True,
     },
@@ -2156,10 +2218,11 @@ rooms = {
         'items': [],
         'in_development': True,
     },
-    'military_eingang': {  # NEW (map integration)
+    'military_eingang': {  # Idea-Map: Military Base (R0C3)
         'name': 'Military Base - Eingang',
-        'description': 'CLASSIFIED. Wachturm, ein Tor. Camo-Grün dominant. Im NORDEN die Barracks, OSTEN die Mess Hall, WESTEN die Armory, SÜDEN der Vehicle Yard.',
-        'exits': {'osten': 'westlich_süd_straße', 'norden': 'military_barracks', 'süden': 'military_vehicles', 'westen': 'military_armory', 'südosten': 'military_messhall'},
+        'description': 'CLASSIFIED. Wachturm, ein Tor. Camo-Grün dominant. Im SÜDEN führt der Weg zur Bibliothek. NORDEN die Barracks, NORDOSTEN die Mess Hall, NORDWESTEN die Armory, SÜDOSTEN der Vehicle Yard.',
+        # Grid: R0C3. Süden = Bibliothek (R1C3). R0C2 = River, R0C4 leer.
+        'exits': {'süden': 'bibliothek_eingang', 'norden': 'military_barracks', 'südosten': 'military_vehicles', 'nordwesten': 'military_armory', 'nordosten': 'military_messhall'},
         'items': ['marker'],
         'in_development': True,
     },
@@ -2173,28 +2236,28 @@ rooms = {
     'military_messhall': {  # NEW (map integration)
         'name': 'Military - Mess Hall',
         'description': 'Vier lange Tische zum Essen. Tarn-Farben. Kaltes Essen verströmt einen üblen Geruch.',
-        'exits': {'nordwesten': 'military_eingang'},
+        'exits': {'südwesten': 'military_eingang'},
         'items': ['konserven'],
         'in_development': True,
     },
     'military_armory': {  # NEW (map integration)
         'name': 'Military - Armory',
         'description': 'Drei Reihen Waffenschränke. Hier liegen GUTE Sachen.',
-        'exits': {'osten': 'military_eingang'},
+        'exits': {'südosten': 'military_eingang'},
         'items': ['mp5', 'munition'],
         'in_development': True,
     },
     'military_vehicles': {  # NEW (map integration)
         'name': 'Military - Vehicle Yard',
         'description': 'Drei Jeeps, ein Tank, ein Helikopter. Ein Trainings-Hindernisparcours nebenan.',
-        'exits': {'norden': 'military_eingang'},
+        'exits': {'nordwesten': 'military_eingang'},
         'items': ['benzinkanister'],
         'in_development': True,
     },
     'hacienda_eingang': {  # NEW (map integration)
         'name': 'Hacienda Nápoles - Villa',
-        'description': 'Eine spanische Villa mit terracotta-rotem Dach. Auf der Wand: "Plata o plomo." Im NORDEN ist die Strecke zurück. OSTEN Küche, WESTEN Wohnzimmer, SÜDEN Pablo\'s Schlafzimmer.',
-        'exits': {'norden': 'südlich_skyscraper2_straße', 'osten': 'hacienda_küche', 'westen': 'hacienda_wohnzimmer', 'süden': 'hacienda_pablo'},
+        'description': 'Eine spanische Villa mit terracotta-rotem Dach. Auf der Wand: "Plata o plomo." Im NORDEN führt eine kurze Auffahrt zur Hacienda Straße. OSTEN Küche, WESTEN Wohnzimmer, SÜDEN Pablo\'s Schlafzimmer.',
+        'exits': {'norden': 'hacienda_straße', 'osten': 'hacienda_küche', 'westen': 'hacienda_wohnzimmer', 'süden': 'hacienda_pablo'},
         'items': [],
         'in_development': True,
     },
@@ -2240,17 +2303,46 @@ rooms = {
         'items': ['leguan_haut'],
         'in_development': True,
     },
-    'prison_eingang': {  # NEW (map integration)
+    'hacienda_straße': {  # Idea-Map: street outside Hacienda Nápoles (R2C2)
+        'name': 'Hacienda Straße',
+        'description': 'Die staubige Auffahrt vor der Hacienda Nápoles. Im SÜDEN steht die Villa mit ihrem terracotta-roten Dach. Nach WESTEN führt die Puente Juanchito über den großen Fluss in die Wildnis. Nach OSTEN führt der Weg an der Hospital-Westseite vorbei zur Krankenhaus Straße. (NORDEN noch unerschlossen.)',
+        'exits': {'süden': 'hacienda_eingang', 'westen': 'puente_juanchito', 'osten': 'krankenhaus_straße'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False,
+    },
+    'puente_juanchito': {  # Idea-Map: the ONLY bridge across the big river (R2C1)
+        'name': 'Puente Juanchito',
+        'description': 'Eine alte Steinbrücke über den großen Fluss — die einzige Verbindung zwischen Stadt und der wilden Westseite. Auf einem rostigen Schild steht "Puente Juanchito". Unten rauscht das Wasser, oben kreisen Geier. Im OSTEN liegt die Hacienda Straße. Nach WESTEN führt der Weg in den dichten Wald jenseits des Flusses.',
+        'exits': {'osten': 'hacienda_straße', 'westen': 'wald_west_zugang'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': True,
+        'zombie_spawn': False,
+    },
+    'wald_west_zugang': {  # Idea-Map: Forest at R2C0 — gateway to western enclave
+        'name': 'Westlicher Wald — Zugang',
+        'description': 'Ein dichter Wald hinter der Puente Juanchito. Hier beginnt die Wildnis westlich des Flusses. Im OSTEN führt die Brücke zurück zur Stadt. Nach NORDEN führt ein schmaler Pfad Richtung Mickey Mouse Club House. Nach SÜDEN ein Pfad zum Feentaal.',
+        # Grid: R2C0. Norden=Mickey-Insel (R0C0 via Forest), Süden=Feentaal(R3C0). Östen=Brücke.
+        'exits': {'osten': 'puente_juanchito', 'norden': 'mickey_mouse_straße', 'süden': 'feen_tal'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': False,
+        'zombie_spawn': False,
+    },
+    'prison_eingang': {  # Idea-Map: Prison (R7C3) — south corridor
         'name': 'Prison - Wachposten',
-        'description': 'Vier Wachtürme an den Ecken. Eingangshalle mit Metalldetektor. Im NORDEN die Strecke zurück. OSTEN die Cell Blocks, WESTEN die Cafeteria, SÜDEN der Yard.',
-        'exits': {'norden': 'südlich_skyscraper2_straße', 'osten': 'prison_zellen', 'westen': 'prison_cafeteria', 'süden': 'prison_yard'},
+        'description': 'Vier Wachtürme an den Ecken. Eingangshalle mit Metalldetektor. Im NORDEN führt der Weg zurück Richtung Innenstadt. Im OSTEN geht es zu den Storage Units. Im WESTEN sieht man die Berge. NORDOSTEN zu den Cell Blocks, NORDWESTEN zur Cafeteria, SÜDEN der Yard.',
+        # Grid: R7C3. Süd-Korridor: Berg(R7C2)←Prison→Storage(R7C4). Norden = Landschaft (R6C3).
+        'exits': {'norden': 'landschaft', 'osten': 'storage_eingang', 'westen': 'berg', 'nordosten': 'prison_zellen', 'nordwesten': 'prison_cafeteria', 'süden': 'prison_yard'},
         'items': ['gefangenenkleidung'],
         'in_development': True,
     },
     'prison_zellen': {  # NEW (map integration)
         'name': 'Prison - Cell Block A',
         'description': 'Acht Zellen in zwei Reihen. Jede mit Bett, Toilette und Gitterstäben. Manche... noch besetzt?',
-        'exits': {'westen': 'prison_eingang'},
+        'exits': {'südwesten': 'prison_eingang'},
         'items': ['ratte', 'rostige_klinge'],
         'in_development': True,
     },
@@ -2264,56 +2356,58 @@ rooms = {
     'prison_cafeteria': {  # NEW (map integration)
         'name': 'Prison - Cafeteria',
         'description': 'Vier lange Tische, Aluminium-Tabletts gestapelt. Riecht nach altem Essen.',
-        'exits': {'osten': 'prison_eingang'},
+        'exits': {'südosten': 'prison_eingang'},
         'items': ['tablett', 'plastiklöffel'],
         'in_development': True,
     },
-    'stadium_eingang': {  # NEW (map integration)
+    'stadium_eingang': {  # Idea-Map: Stadium (R6C5) — center of R6 row
         'name': 'Stadium - Eingang',
-        'description': 'Asphalt-Parkplatz, Tribünen-Ringe. "STADIUM" über der Tür. Im NORDEN zurück. OSTEN die Tribünen, WESTEN das Feld, SÜDEN die Concession Stands.',
-        'exits': {'norden': 'südlich_skyscraper2_straße', 'osten': 'stadium_tribuene', 'westen': 'stadium_feld', 'süden': 'stadium_food'},
+        'description': 'Asphalt-Parkplatz, Tribünen-Ringe. "STADIUM" über der Tür. Im SÜDEN der Stark Tower. Im WESTEN die Feuerwehr, im OSTEN der Flughafen. NORDOSTEN die Tribünen, NORDWESTEN das Feld, NORDEN die Concession Stands.',
+        # Grid: R6C5. R6-Reihe: Feuerwehr(R6C4)↔Stadium(R6C5)↔Airport(R6C6). Süden=Stark(R7C5).
+        'exits': {'süden': 'stark_lobby', 'westen': 'feuerwehr_eingang', 'osten': 'airport_terminal', 'nordosten': 'stadium_tribuene', 'nordwesten': 'stadium_feld', 'norden': 'stadium_food'},
         'items': ['eintrittskarte'],
         'in_development': True,
     },
     'stadium_feld': {  # NEW (map integration)
         'name': 'Stadium - Fußballfeld',
         'description': 'Grünes Spielfeld mit weißen Markierungen. Mittelpunkt, Strafraum, zwei Tore. Eine alte Spielzeit auf dem Scoreboard: "HOME 2 - 1 AWAY 45:23".',
-        'exits': {'osten': 'stadium_eingang'},
+        'exits': {'südosten': 'stadium_eingang'},
         'items': ['fußball'],
         'in_development': True,
     },
     'stadium_tribuene': {  # NEW (map integration)
         'name': 'Stadium - Tribünen',
         'description': 'Reihen über Reihen blauer und gelber Sitze. Aussicht auf das Feld.',
-        'exits': {'westen': 'stadium_eingang'},
+        'exits': {'südwesten': 'stadium_eingang'},
         'items': ['fan_schal'],
         'in_development': True,
     },
     'stadium_food': {  # NEW (map integration)
         'name': 'Stadium - Concession Stands',
         'description': 'Vier Buden: Hot Dogs, Bier, Pretzels, Pizza. Alles vergammelt.',
-        'exits': {'norden': 'stadium_eingang'},
+        'exits': {'süden': 'stadium_eingang'},
         'items': ['pretzel', 'altes_bier'],
         'in_development': True,
     },
-    'capsule_eingang': {  # NEW (map integration)
+    'capsule_eingang': {  # Idea-Map: Capsule Corp (R7C7) — south corridor
         'name': 'Capsule Corp - Foyer',
-        'description': 'Eine Kuppel aus gelbem Material mit "CAPSULE CORP" in lila Schrift. Im NORDEN zurück. OSTEN Bulma\'s Lab, WESTEN die Capsule House, SÜDEN die Gravity Chamber.',
-        'exits': {'norden': 'südlich_skyscraper2_straße', 'osten': 'capsule_lab', 'westen': 'capsule_haus', 'süden': 'capsule_gravity'},
+        'description': 'Eine Kuppel aus gelbem Material mit "CAPSULE CORP" in lila Schrift. Im WESTEN der City Bunker, im OSTEN das Studio. Im NORDEN führt der Weg zur Baustelle. NORDOSTEN Bulma\'s Lab, NORDWESTEN das Capsule House, SÜDEN die Gravity Chamber.',
+        # Grid: R7C7. Bunker (R7C6) west, Studio (R7C8) ost. Bau (R6C7) norden.
+        'exits': {'westen': 'bunker_eingang', 'osten': 'studio_eingang', 'norden': 'bau_eingang', 'nordosten': 'capsule_lab', 'nordwesten': 'capsule_haus', 'süden': 'capsule_gravity'},
         'items': ['kapsel_token'],
         'in_development': True,
     },
     'capsule_lab': {  # NEW (map integration)
         'name': "Capsule Corp - Bulma's Lab",
         'description': 'Drei Lab-Bänke. Eine Time Machine, ein Dragon Ball Radar.',
-        'exits': {'westen': 'capsule_eingang'},
+        'exits': {'südwesten': 'capsule_eingang'},
         'items': ['db_radar', 'kapsel'],
         'in_development': True,
     },
     'capsule_haus': {  # NEW (map integration)
         'name': 'Capsule Corp - Capsule House',
         'description': 'Ein klein-orangenes Haus aus einer Kapsel. Bett, Tisch.',
-        'exits': {'osten': 'capsule_eingang'},
+        'exits': {'südosten': 'capsule_eingang'},
         'items': ['kapsel'],
         'in_development': True,
     },
@@ -2324,24 +2418,25 @@ rooms = {
         'items': [],
         'in_development': True,
     },
-    'bunker_eingang': {  # NEW (map integration)
+    'bunker_eingang': {  # Idea-Map: City Bunker (R7C6) — south corridor
         'name': 'Bunker (City) - Eingang',
-        'description': 'Beton-Bunker. Stahltüren. "Authorized Personnel Only." Im NORDEN zurück. OSTEN drei Vault Doors, WESTEN Supply Storage, SÜDEN Bunk Room.',
-        'exits': {'norden': 'südlich_skyscraper2_straße', 'osten': 'bunker_vaults', 'westen': 'bunker_supplies', 'süden': 'bunker_bunks'},
+        'description': 'Beton-Bunker. Stahltüren. "Authorized Personnel Only." Im WESTEN der Stark Tower, im OSTEN Capsule Corp. Im NORDEN führt der Weg zum Airport. NORDOSTEN drei Vault Doors, NORDWESTEN Supply Storage, SÜDEN Bunk Room.',
+        # Grid: R7C6. Stark (R7C5) west, Capsule (R7C7) ost. Airport (R6C6) norden.
+        'exits': {'westen': 'stark_lobby', 'osten': 'capsule_eingang', 'norden': 'airport_terminal', 'nordosten': 'bunker_vaults', 'nordwesten': 'bunker_supplies', 'süden': 'bunker_bunks'},
         'items': ['gasmaske'],
         'in_development': True,
     },
     'bunker_vaults': {  # NEW (map integration)
         'name': 'Bunker - Vault Doors',
         'description': 'Drei massive Stahltüren mit Drehrad. Was lagert dahinter?',
-        'exits': {'westen': 'bunker_eingang'},
+        'exits': {'südwesten': 'bunker_eingang'},
         'items': ['vault_schlüssel'],
         'in_development': True,
     },
     'bunker_supplies': {  # NEW (map integration)
         'name': 'Bunker - Supply Storage',
         'description': '12 große Holzkisten aufgestapelt. Konserven, Wasser, Medikamente.',
-        'exits': {'osten': 'bunker_eingang'},
+        'exits': {'südosten': 'bunker_eingang'},
         'items': ['konserven', 'medkit', 'wasser'],
         'in_development': True,
     },
@@ -2352,10 +2447,11 @@ rooms = {
         'items': ['decke'],
         'in_development': True,
     },
-    'doof_eingang': {  # NEW (map integration)
+    'doof_eingang': {  # Idea-Map: Doofenshmirtz Evil Inc. (R5C8) — east edge
         'name': 'Doofenshmirtz Evil Inc. - Lobby',
-        'description': 'Lila Tower. "EVIL INCORPORATED" in roter Schrift. Drinnen ein hilfloser Empfangstisch. Im NORDEN zurück. HOCH zum -inator-Workshop.',
-        'exits': {'norden': 'südlich_skyscraper2_straße', 'hoch': 'doof_workshop'},
+        'description': 'Lila Tower. "EVIL INCORPORATED" in roter Schrift. Drinnen ein hilfloser Empfangstisch. Im NORDEN führt der Weg zur Discotec. HOCH zum -inator-Workshop.',
+        # Grid: R5C8. Norden = Discotec (R4C8). Süden ist leer (R6C8). Westen R5C7 leer.
+        'exits': {'norden': 'disco_eingang', 'hoch': 'doof_workshop'},
         'items': ['evil_pin'],
         'in_development': True,
     },
@@ -2380,24 +2476,25 @@ rooms = {
         'items': [],
         'in_development': True,
     },
-    'studio_eingang': {  # NEW (map integration)
+    'studio_eingang': {  # Idea-Map: Studio (R7C8) — east end of south corridor
         'name': 'Studio - Eingang',
-        'description': 'Cremefarbenes Gebäude. "Lights, Camera, Action." Im NORDEN zurück. OSTEN News-Set, WESTEN Drama-Set, SÜDEN Control Room.',
-        'exits': {'norden': 'weit_süd_landschaft', 'osten': 'studio_news', 'westen': 'studio_drama', 'süden': 'studio_control'},
+        'description': 'Cremefarbenes Gebäude. "Lights, Camera, Action." Im WESTEN Capsule Corp. NORDOSTEN News-Set, NORDWESTEN Drama-Set, SÜDEN Control Room.',
+        # Grid: R7C8 (south-east corner). Capsule (R7C7) west. R6C8 ist leer, kein Norden-Anker.
+        'exits': {'westen': 'capsule_eingang', 'nordosten': 'studio_news', 'nordwesten': 'studio_drama', 'süden': 'studio_control'},
         'items': ['klappe'],
         'in_development': True,
     },
     'studio_news': {  # NEW (map integration)
         'name': 'Studio - News Set',
         'description': 'Roter News-Anchor-Schreibtisch, blaue Bildschirme, "LIVE NEWS"-Schild, zwei Kameras.',
-        'exits': {'westen': 'studio_eingang'},
+        'exits': {'südwesten': 'studio_eingang'},
         'items': ['mikrofon'],
         'in_development': True,
     },
     'studio_drama': {  # NEW (map integration)
         'name': 'Studio - Drama Set',
         'description': 'Lilanes Set: Wohnzimmer-Kulisse mit Couch, Tisch, Tv-Stand. Ein Carpet aus echtem Plüsch.',
-        'exits': {'osten': 'studio_eingang'},
+        'exits': {'südosten': 'studio_eingang'},
         'items': ['skript'],
         'in_development': True,
     },
@@ -2408,108 +2505,119 @@ rooms = {
         'items': ['kassette'],
         'in_development': True,
     },
-    'bau_eingang': {  # NEW (map integration)
+    'bau_eingang': {  # Idea-Map: Construction Site (R6C7) — east end of R6 row
         'name': 'Construction Site - Eingang',
-        'description': 'Schmutzig-orangener Bauplatz. Im NORDEN zurück. WESTEN ein Halbfertiger Tower, OSTEN ein Kran, SÜDEN Material-Stapel.',
-        'exits': {'norden': 'weit_süd_landschaft', 'westen': 'bau_tower', 'osten': 'bau_kran', 'süden': 'bau_material'},
+        'description': 'Schmutzig-orangener Bauplatz. Im WESTEN der Flughafen. Im SÜDEN Capsule Corp. NORDWESTEN ein Halbfertiger Tower, NORDOSTEN ein Kran, NORDEN Material-Stapel.',
+        # Grid: R6C7. Westen=Airport(R6C6), Süden=Capsule(R7C7). R5C7 leer, R6C8 leer.
+        'exits': {'westen': 'airport_terminal', 'süden': 'capsule_eingang', 'nordwesten': 'bau_tower', 'nordosten': 'bau_kran', 'norden': 'bau_material'},
         'items': ['hardhat'],
         'in_development': True,
     },
     'bau_tower': {  # NEW (map integration)
         'name': 'Construction - Halbfertiger Tower',
         'description': 'Ein angefangener Wolkenkratzer. Stahlträger, Beton, Gerüste oben. Innen rohe Wände.',
-        'exits': {'osten': 'bau_eingang'},
+        'exits': {'südosten': 'bau_eingang'},
         'items': ['stahltraeger', 'mauerstein'],
         'in_development': True,
     },
     'bau_kran': {  # NEW (map integration)
         'name': 'Construction - Kran',
         'description': 'Ein gigantischer gelber Kran. Du könntest hochklettern für eine bessere Aussicht.',
-        'exits': {'westen': 'bau_eingang'},
+        'exits': {'südwesten': 'bau_eingang'},
         'items': ['stahlkette'],
         'in_development': True,
     },
     'bau_material': {  # NEW (map integration)
         'name': 'Construction - Material-Lager',
         'description': 'Holzstapel, Rohrleitungen, ein Zementmischer.',
-        'exits': {'norden': 'bau_eingang'},
+        'exits': {'süden': 'bau_eingang'},
         'items': ['holzplanke', 'rohr'],
         'in_development': True,
     },
-    'airport_terminal': {  # NEW (map integration)
+    'airport_terminal': {  # Idea-Map: Airport (R6C6)
         'name': 'Airport - Terminal A',
-        'description': 'Eine helle, hellblaue Halle mit "Terminal A". Im NORDEN zurück. OSTEN die Wartebereiche und Shops, SÜDEN die Runway, WESTEN die Security.',
-        'exits': {'norden': 'weit_süd_landschaft', 'osten': 'airport_warten', 'süden': 'airport_runway', 'westen': 'airport_security'},
+        'description': 'Eine helle, hellblaue Halle mit "Terminal A". Im WESTEN das Stadium, im OSTEN die Baustelle. Im SÜDEN der Bunker. NORDEN Wartebereiche/Shops, NORDOSTEN die Runway, NORDWESTEN die Security.',
+        # Grid: R6C6. R6-Reihe: Stadium(R6C5)↔Airport(R6C6)↔Bau(R6C7). Süden=Bunker(R7C6).
+        'exits': {'westen': 'stadium_eingang', 'osten': 'bau_eingang', 'süden': 'bunker_eingang', 'norden': 'airport_warten', 'nordosten': 'airport_runway', 'nordwesten': 'airport_security'},
         'items': ['boarding_pass'],
         'in_development': True,
     },
     'airport_warten': {  # NEW (map integration)
         'name': 'Airport - Wartebereich',
         'description': 'Reihen brauner Couches, vier Shops: Duty Free, Coffee, Books, Souvenirs.',
-        'exits': {'westen': 'airport_terminal'},
+        'exits': {'süden': 'airport_terminal'},
         'items': ['kaffee', 'magazin'],
         'in_development': True,
     },
     'airport_runway': {  # NEW (map integration)
         'name': 'Airport - Runway',
         'description': 'Lange schwarze Runway mit gelben Markierungen. Drei Flugzeuge stehen still.',
-        'exits': {'norden': 'airport_terminal'},
+        'exits': {'südwesten': 'airport_terminal'},
         'items': ['kraftstoff'],
         'in_development': True,
     },
     'airport_security': {  # NEW (map integration)
         'name': 'Airport - Security',
         'description': 'Roter Bereich mit X-Ray-Scanner und Metalldetektor.',
-        'exits': {'osten': 'airport_terminal'},
+        'exits': {'südosten': 'airport_terminal'},
         'items': ['scanner_teil'],
         'in_development': True,
     },
-    'südlich_skyscraper2_straße': {  # NEW (map integration)
+    'südlich_skyscraper2_straße': {  # DEPRECATED sub-street south of Skyscraper2
         'name': 'Südliche Skyscraper2-Straße',
-        'description': 'Im NORDEN ist der Skyscraper 2. Im OSTEN führt es weiter östlich. Im SÜDEN führt es weit südlich.',
-        'exits': {'norden': 'westliche_skyscraper2_weggabelung', 'osten': 'oestlich_skyscraper2_erweiterung_süd', 'süden': 'weit_süd_landschaft', 'westen': 'hacienda_eingang', 'südwesten': 'prison_eingang', 'südosten': 'capsule_eingang', 'nordwesten': 'stadium_eingang', 'nordosten': 'bunker_eingang'},
+        'description': 'Eine vergessene Straße südlich des Skyscraper 2. Im NORDEN führt der Weg zurück zur Skyscraper2-Weggabelung. (Diese Straße führt nirgendwo mehr hin — die Süd-Distrikte hängen jetzt am R7-Korridor.)',
+        # DEPRECATED. Kept reachable as dead-end so save games don't break.
+        'exits': {'norden': 'westliche_skyscraper2_weggabelung'},
         'items': [],
         'in_development': True,
+        'deprecated': True,
     },
-    'weit_süd_landschaft': {  # NEW (map integration)
+    'weit_süd_landschaft': {  # DEPRECATED former hub
         'name': 'Weit Südliche Landschaft',
-        'description': 'Hier wird die Stadt zur Landschaft. Im NORDEN zurück Richtung Stadt. Im SÜDEN führt der Weg ins offene Land - Forest, Valley, Fairy Valley, Landscape.',
-        'exits': {'norden': 'südlich_skyscraper2_straße', 'osten': 'studio_eingang', 'westen': 'airport_terminal', 'südosten': 'wald_haus_eingang', 'südwesten': 'feen_tal', 'süden': 'tal_lichtung', 'nordwesten': 'bau_eingang', 'südsüdosten': 'landschaft'},
+        'description': 'Eine vergessene Landschaftsstraße. Im NORDEN führt der Weg zurück zur südlichen Skyscraper2-Straße. (Süd-Distrikte und West-Insel wurden umverkabelt.)',
+        # DEPRECATED. Used to fan out to studio/airport/bau/wald_haus/feen_tal/tal_lichtung/landschaft.
+        'exits': {'norden': 'südlich_skyscraper2_straße'},
         'items': [],
         'in_development': True,
+        'deprecated': True,
     },
-    'feen_tal': {  # NEW (map integration)
+    'feen_tal': {  # Idea-Map: Fairy Valley (R3C0) — west island
         'name': 'Fairy Valley ✨',
-        'description': 'Pink-rosa-Landschaft mit Pilzhäusern, Sterne ✨ überall, ein magischer Teich, ein Regenbogen-Pfad. Im NORDEN führt es zurück.',
-        'exits': {'norden': 'weit_süd_landschaft'},
+        'description': 'Pink-rosa-Landschaft mit Pilzhäusern, Sterne ✨ überall, ein magischer Teich, ein Regenbogen-Pfad. Im NORDEN führt der Pfad zum westlichen Wald, im SÜDEN zur Lichtung.',
+        # Grid: R3C0. Norden = wald_west_zugang(R2C0). Süden = R4C0(Forest, kein Anker)
+        # → Lichtung (R5C0) erreicht man über die zwei Forest-Zellen dazwischen.
+        'exits': {'norden': 'wald_west_zugang', 'süden': 'tal_lichtung'},
         'items': ['feen_staub', 'pilz'],
         'in_development': True,
     },
-    'tal_lichtung': {  # NEW (map integration)
+    'tal_lichtung': {  # Idea-Map: Valley/Clearing (R5C0) — west island center
         'name': 'Valley / Clearing',
-        'description': 'Eine offene Wiese mit Wildblumen, einem schmalen Bach, einem Picknickplatz.',
-        'exits': {'norden': 'weit_süd_landschaft', 'osten': 'wald_haus_eingang'},
+        'description': 'Eine offene Wiese mit Wildblumen, einem schmalen Bach, einem Picknickplatz. Im NORDEN das Feentaal, im SÜDEN das Wald-Haus, im OSTEN der Friedhof.',
+        # Grid: R5C0. Norden=Feentaal(R3C0, über Forest), Süden=WaldHaus(R6C0), Osten=Friedhof(R5C1).
+        'exits': {'norden': 'feen_tal', 'süden': 'wald_haus_eingang', 'osten': 'friedhof_eingang'},
         'items': ['wildblume'],
         'in_development': True,
     },
-    'wald_haus_eingang': {  # NEW (map integration)
+    'wald_haus_eingang': {  # Idea-Map: Forest/House (R6C0) — west island
         'name': 'Forest / House',
-        'description': 'Ein dichter Wald mit einer kleinen Hütte. Davor ein Pfad. Hütte hat ein rotes Dach, ein grüne Tür.',
-        'exits': {'westen': 'tal_lichtung', 'norden': 'weit_süd_landschaft', 'osten': 'wald_haus_drinnen'},
+        'description': 'Ein dichter Wald mit einer kleinen Hütte. Davor ein Pfad. Hütte hat ein rotes Dach, eine grüne Tür. Im NORDEN die Lichtung, im SÜDEN der Sex Dungeon, im OSTEN das Maze.',
+        # Grid: R6C0. Norden=Lichtung(R5C0), Süden=SexDungeon(R7C0), Osten=Maze(R6C1).
+        'exits': {'norden': 'tal_lichtung', 'süden': 'sex_dungeon_eingang', 'osten': 'maze_eingang', 'südosten': 'wald_haus_drinnen'},
         'items': ['holzscheit'],
         'in_development': True,
     },
     'wald_haus_drinnen': {  # NEW (map integration)
         'name': 'Forest / House - Drinnen',
         'description': 'Drinnen in der Hütte. Ein Bett, ein Tisch, zwei kleine Fenster. Gemütlich.',
-        'exits': {'westen': 'wald_haus_eingang'},
+        'exits': {'nordwesten': 'wald_haus_eingang'},
         'items': ['decken', 'streichhölzer'],
         'in_development': True,
     },
-    'landschaft': {  # NEW (map integration)
+    'landschaft': {  # Idea-Map: Landscape (R6C3) — west end of R6 row
         'name': 'Landschaft',
-        'description': 'Sanfte Hügel, eine Sonne, ein gewundener Pfad, vereinzelte Bäume. Friedlich.',
-        'exits': {'westen': 'weit_süd_landschaft'},
+        'description': 'Sanfte Hügel, eine Sonne, ein gewundener Pfad, vereinzelte Bäume. Friedlich. Im OSTEN führt der Weg zur Feuerwehr. Im SÜDEN das Prison.',
+        # Grid: R6C3. Osten = Feuerwehr (R6C4). Süden = Prison (R7C3). R6C2 = River, R5C3 = Casino.
+        'exits': {'osten': 'feuerwehr_eingang', 'süden': 'prison_eingang', 'norden': 'casino_eingang'},
         'items': ['kraut'],
         'in_development': True,
     },
@@ -3639,27 +3747,27 @@ def describe_room():
 # GRAPHISCHES KARTEN-SYSTEM (Node Graph)
 # ========================
 
-# Auto-generated node coordinates from game_map.py BFS solver
-# Scaled by 2x for visual spacing in the graph view
-GRAPH_LAYOUT = {rk: (coord[0] * 2, coord[1] * 2) for rk, coord in ((r, get_room_coord(r)) for r in rooms) if coord is not None}
+# Base layout: snap each district anchor onto its DISTRICT_GRID position
+# (col*S, row*S), and BFS-spiral all sub-rooms around their nearest anchor.
+# This gives a clean, grid-aligned in-game map that matches the Idea-Map.
+GRAPH_LAYOUT = compute_auto_layout(rooms)
+print(f"[MAP] Auto-layout: {len(GRAPH_LAYOUT)} rooms placed on Idea-Map grid")
 
-# Load custom positions from JSON if file exists
+# Load custom positions from JSON. These OVERRIDE the auto-layout for rooms
+# the user has manually moved in the in-game map editor.
 import json as _json
 try:
     with open(MAP_LAYOUT_FILE, 'r', encoding='utf-8') as _f:
         _custom = _json.load(_f)
     # Support both old format (flat dict) and new format (nested)
-    if 'nodes' in _custom:
-        for _rk, _pos in _custom['nodes'].items():
-            if _rk in GRAPH_LAYOUT:
-                GRAPH_LAYOUT[_rk] = tuple(_pos)
-        custom_blocks = _custom.get('custom_blocks', [])
-    else:
-        # Old format: flat dict of room positions
-        for _rk, _pos in _custom.items():
-            if _rk in GRAPH_LAYOUT:
-                GRAPH_LAYOUT[_rk] = tuple(_pos)
-    print(f"[MAP] Custom layout loaded from {MAP_LAYOUT_FILE}")
+    _node_overrides = _custom.get('nodes', _custom)
+    _override_count = 0
+    for _rk, _pos in _node_overrides.items():
+        if _rk in GRAPH_LAYOUT:
+            GRAPH_LAYOUT[_rk] = tuple(_pos)
+            _override_count += 1
+    custom_blocks = _custom.get('custom_blocks', []) if isinstance(_custom, dict) and 'nodes' in _custom else []
+    print(f"[MAP] {_override_count} nodes overridden from {MAP_LAYOUT_FILE}")
 except FileNotFoundError:
     pass
 except Exception as _e:
@@ -3822,6 +3930,34 @@ def draw_map(current_time):
                     (hx - handle_size, hy - handle_size, handle_size*2, handle_size*2))
 
     # 2) Transitions (Kanten/Edges)
+    # ─── Render-Tiers, damit lange/falsche Linien nicht alles zumüllen ───
+    #   short  (dist <= 30): solid blau, normaler Look
+    #   long   (dist >  30): gestrichelt + halbtransparent (deutet "weit weg" an)
+    #   mismatch (Richtung passt nicht zum Exit-Namen): orange-rot, gestrichelt
+    # Direction → (dx, dy) in GRAPH_LAYOUT-Einheiten (1 grid cell = 2 units, siehe oben)
+    _DIR_DELTA_RENDER = {
+        'norden':     ( 0, -1), 'süden':      ( 0,  1),
+        'osten':      ( 1,  0), 'westen':     (-1,  0),
+        'nordosten':  ( 1, -1), 'nordwesten': (-1, -1),
+        'südosten':   ( 1,  1), 'südwesten':  (-1,  1),
+        'hoch':       ( 0, -1), 'runter':     ( 0,  1),
+    }
+    LONG_THRESHOLD_PX = scale(60) * map_zoom  # >60 screen-px counts as "long"
+    
+    def _draw_dashed(surface, color, p1, p2, thickness, dash_len=8, gap_len=6):
+        dx_ = p2[0] - p1[0]; dy_ = p2[1] - p1[1]
+        d_ = math.hypot(dx_, dy_)
+        if d_ <= 0: return
+        ux, uy = dx_ / d_, dy_ / d_
+        step = (dash_len + gap_len) * map_zoom
+        cur = 0
+        while cur < d_:
+            seg_end = min(cur + dash_len * map_zoom, d_)
+            s = (int(p1[0] + ux * cur), int(p1[1] + uy * cur))
+            e = (int(p1[0] + ux * seg_end), int(p1[1] + uy * seg_end))
+            pygame.draw.line(surface, color, s, e, thickness)
+            cur += step
+    
     for t in TRANSITIONS:
         r_from = t.get('from')
         r_to = t.get('to')
@@ -3835,32 +3971,41 @@ def draw_map(current_time):
         locked = t.get('locked', False)
         t_type = t.get('type', 'passage')
         
-        color = (200, 50, 50) if locked else (100, 150, 200)
+        # ── Distanz + Richtungs-Check ──
+        dx_px = p2[0] - p1[0]
+        dy_px = p2[1] - p1[1]
+        dist_px = math.hypot(dx_px, dy_px)
+        is_long = dist_px > LONG_THRESHOLD_PX
+        
+        is_mismatch = False
+        dir_from = t.get('dir_from') or t.get('dir')
+        if dir_from in _DIR_DELTA_RENDER and dist_px > scale(20):
+            edx, edy = _DIR_DELTA_RENDER[dir_from]
+            enorm = math.hypot(edx, edy)
+            ex, ey = edx / enorm, edy / enorm
+            ax, ay = dx_px / dist_px, dy_px / dist_px
+            dot = ex * ax + ey * ay
+            if dot < 0.3:  # >70° vom erwarteten Vektor abweichend
+                is_mismatch = True
+        
         thickness = max(1, int(3 * map_zoom)) if locked else max(1, int(2 * map_zoom))
         
         if t_type == 'stairs':
-            # Draw dashed line for stairs
-            dx = p2[0] - p1[0]
-            dy = p2[1] - p1[1]
-            dist = math.hypot(dx, dy)
-            if dist > 0:
-                dx, dy = dx / dist, dy / dist
-                curr = 0
-                while curr < dist:
-                    nxt = min(curr + 10*map_zoom, dist)
-                    start = (int(p1[0] + dx * curr), int(p1[1] + dy * curr))
-                    end = (int(p1[0] + dx * nxt), int(p1[1] + dy * nxt))
-                    pygame.draw.line(screen, (200, 200, 50), start, end, thickness)
-                    curr += 20*map_zoom
+            _draw_dashed(screen, (200, 200, 50), p1, p2, thickness, dash_len=10, gap_len=10)
+        elif locked:
+            pygame.draw.line(screen, (200, 50, 50), p1, p2, thickness)
+            mx, my = (p1[0] + p2[0]) // 2, (p1[1] + p2[1]) // 2
+            esize = 5 * map_zoom
+            pygame.draw.line(screen, (255, 50, 50), (mx-esize, my-esize), (mx+esize, my+esize), thickness)
+            pygame.draw.line(screen, (255, 50, 50), (mx+esize, my-esize), (mx-esize, my+esize), thickness)
+        elif is_mismatch:
+            # Falsche Richtung: orange-rot gestrichelt, dünner
+            _draw_dashed(screen, (210, 100, 70), p1, p2, max(1, thickness - 1), dash_len=6, gap_len=4)
+        elif is_long:
+            # Weite Verbindung: blass gestrichelt
+            _draw_dashed(screen, (60, 90, 115), p1, p2, max(1, thickness - 1), dash_len=10, gap_len=8)
         else:
-            pygame.draw.line(screen, color, p1, p2, thickness)
-            
-            # Wenn gesperrt, zeichne ein kleines X in der Mitte
-            if locked:
-                mx, my = (p1[0] + p2[0]) // 2, (p1[1] + p2[1]) // 2
-                esize = 5 * map_zoom
-                pygame.draw.line(screen, (255, 50, 50), (mx-esize, my-esize), (mx+esize, my+esize), thickness)
-                pygame.draw.line(screen, (255, 50, 50), (mx+esize, my-esize), (mx-esize, my+esize), thickness)
+            pygame.draw.line(screen, (100, 150, 200), p1, p2, thickness)
 
     # 3) Nodes (Räume)
     node_radius = max(4, int(15 * map_zoom))
@@ -3918,9 +4063,9 @@ def draw_map(current_time):
     pygame.draw.line(screen, (200, 255, 255), (30, 30 + title_surf.get_height() + 5), (30 + title_surf.get_width() + 50, 30 + title_surf.get_height() + 5), 2)
     
     # Legend Box
-    leg_x, leg_y = 30, screen.get_height() - 150
-    pygame.draw.rect(screen, (30, 30, 30, 200), (leg_x-10, leg_y-10, 250, 130))
-    pygame.draw.rect(screen, (100, 100, 100), (leg_x-10, leg_y-10, 250, 130), 1)
+    leg_x, leg_y = 30, screen.get_height() - 200
+    pygame.draw.rect(screen, (30, 30, 30, 200), (leg_x-10, leg_y-10, 280, 180))
+    pygame.draw.rect(screen, (100, 100, 100), (leg_x-10, leg_y-10, 280, 180), 1)
     
     screen.blit(font_tiny.render("LEGENDE:", True, (200, 200, 200)), (leg_x, leg_y))
     
@@ -3931,10 +4076,19 @@ def draw_map(current_time):
     screen.blit(font_tiny.render("Gesperrter Übergang", True, (150, 150, 150)), (leg_x+35, leg_y+45))
     
     # Treppen strich-linie als legend
-    pygame.draw.line(screen, (200, 200, 50), (leg_x, leg_y+80), (leg_x+5, leg_y+80), 2)
-    pygame.draw.line(screen, (200, 200, 50), (leg_x+10, leg_y+80), (leg_x+15, leg_y+80), 2)
-    pygame.draw.line(screen, (200, 200, 50), (leg_x+20, leg_y+80), (leg_x+25, leg_y+80), 2)
+    for _dx in (0, 10, 20):
+        pygame.draw.line(screen, (200, 200, 50), (leg_x+_dx, leg_y+80), (leg_x+_dx+5, leg_y+80), 2)
     screen.blit(font_tiny.render("Treppen / Etage", True, (150, 150, 150)), (leg_x+35, leg_y+70))
+    
+    # Lange Verbindung (gestrichelt, blass)
+    for _dx in (0, 13, 26):
+        pygame.draw.line(screen, (60, 90, 115), (leg_x+_dx, leg_y+105), (leg_x+_dx+8, leg_y+105), 2)
+    screen.blit(font_tiny.render("Lange Verbindung (>60px)", True, (150, 150, 150)), (leg_x+35, leg_y+95))
+    
+    # Mismatch (gestrichelt, orange-rot)
+    for _dx in (0, 13, 26):
+        pygame.draw.line(screen, (210, 100, 70), (leg_x+_dx, leg_y+130), (leg_x+_dx+8, leg_y+130), 2)
+    screen.blit(font_tiny.render("Falsche Richtung (Exit ≠ Pos)", True, (150, 150, 150)), (leg_x+35, leg_y+120))
     
     # Controls Help Bottom Right
     # Controls Help Bottom Right

@@ -260,6 +260,10 @@ BIOME_MAP = {
     'home_depot_straße_süd': 'street',
     'home_depot_straße_west': 'street',
     'home_depot_weggabelung_nord_ost': 'street',
+    'home_depot_weggabelung_nord_west': 'street',
+    'hacienda_straße':    'street',
+    'puente_juanchito':   'street',
+    'wald_west_zugang':   'forest',
     'home_depot_weggabelung_osten': 'street',
     'home_depot_weggabelung_süd_ost': 'street',
     'home_depot_weggabelung_west_nord': 'street',
@@ -313,6 +317,266 @@ UNIMPLEMENTED_ROOMS = {
     'haus2', 'park', 'haus1_vordertür', 'bedroom_2',
     'straße_pizzeria', 'home_depot_straße_ost',
 }
+
+
+# ---------------------------------------------------------------------------
+# DISTRICT_GRID — single source of truth for the Idea-Map layout
+# ---------------------------------------------------------------------------
+# Maps (row, col) on the canonical 8x9 grid -> "anchor room" key in rooms{}.
+# This anchor is the room you arrive at when entering the district from the
+# street side (= the door room or the central street of that district).
+#
+# Special cells:
+#   None  = empty / placeholder cell (no district there)
+#   '__RIVER__' = river cell, blocks movement (Forest/River in Excalidraw)
+#   '__FOREST__' = forest terrain, walkable but no specific room defined yet
+#
+# Convention from Idea-Map (Excalidraw): R0 = north edge, R7 = south edge
+#                                        C0 = west edge,  C8 = east edge
+DISTRICT_GRID = {
+    # ── ROW 0 (north edge) ────────────────────────────────────────────
+    (0, 0): 'mickey_mouse_eingang',     # Mickey Mouse Club House
+    (0, 1): '__FOREST__',               # Forest
+    (0, 2): '__RIVER__',                # Forest/River (big river)
+    (0, 3): 'military_eingang',         # Military Base
+    (0, 4): None,                       # empty cell
+    (0, 5): 'strand',                   # Beach
+    (0, 6): 'strand_brücke',            # Beach/Bridge (over the sea)
+    (0, 7): 'amusement_eingang',        # Amusement Park
+    (0, 8): 'bruce_wayne_eingang',      # Bruce Wayne Manor
+    # ── ROW 1 ────────────────────────────────────────────────────────
+    (1, 0): '__FOREST__',
+    (1, 1): '__RIVER__',
+    (1, 2): '__FOREST__',
+    (1, 3): 'bibliothek_eingang',       # Library
+    (1, 4): 'haus_3_eingang',           # House3
+    (1, 5): 'walmart_eingang',          # Walmart
+    (1, 6): 'pollos_eingang',           # Sanchéz / Los Pollos Hermanos
+    (1, 7): None,                       # Bank — not yet implemented
+    (1, 8): None,                       # empty
+    # ── ROW 2 (Spawn row) ────────────────────────────────────────────
+    (2, 0): 'wald_west_zugang',         # West-Wald, Zugang von der Brücke
+    (2, 1): 'puente_juanchito',         # Puente Juanchito (the ONE bridge)
+    (2, 2): 'hacienda_eingang',         # Hacienda Nápoles
+    (2, 3): 'krankenhaus_eingang',      # Hospital
+    (2, 4): 'vordertuer',               # SPAWN (Versteck-Vordertür)
+    (2, 5): 'haus2',                    # House2 (placeholder)
+    (2, 6): 'waterpark_eingang',        # Waterpark
+    (2, 7): 'town_hall_eingang',        # Town Hall
+    (2, 8): 'batcave_garage',           # Batcave entrance
+    # ── ROW 3 ────────────────────────────────────────────────────────
+    (3, 0): 'feen_tal',                 # Valley / Fairy Tale Valley
+    (3, 1): '__RIVER__',
+    (3, 2): 'lab_eingang',              # Filtration / Laboratory exterior
+    (3, 3): 'home_depot_weggabelung_nord_ost',  # Home Depot
+    (3, 4): 'haus1',                    # House1
+    (3, 5): 'park',                     # Park (placeholder)
+    (3, 6): None,                       # los pollos (in row 1) — leave empty
+    (3, 7): 'cinema_eingang',           # Cinema
+    (3, 8): 'joestar_eingang',          # Joestar Mansion
+    # ── ROW 4 ────────────────────────────────────────────────────────
+    (4, 0): '__FOREST__',
+    (4, 1): '__RIVER__',
+    (4, 2): '__RIVER__',
+    (4, 3): 'lab_chemie',               # laboratory inner
+    (4, 4): None,                       # Police — not yet implemented
+    (4, 5): 'skyscraper_weggabelung',   # Skyscraper 1
+    (4, 6): 'timesquare',               # Times Square
+    (4, 7): 'university_eingang',       # University
+    (4, 8): 'disco_eingang',            # Discotec
+    # ── ROW 5 ────────────────────────────────────────────────────────
+    (5, 0): 'tal_lichtung',             # Fairy valley clearing
+    (5, 1): 'friedhof_eingang',         # Graveyard
+    (5, 2): '__RIVER__',
+    (5, 3): 'casino_eingang',           # Casino
+    (5, 4): 'südliche_pizzeria_straße', # Pizzeria street
+    (5, 5): None,
+    (5, 6): 'westliche_skyscraper2_weggabelung',  # Skyscraper 2 (anchor existing room)
+    (5, 7): None,
+    (5, 8): 'doof_eingang',             # Doofenshmirtz Tower
+    # ── ROW 6 ────────────────────────────────────────────────────────
+    (6, 0): 'wald_haus_eingang',        # Forest/House
+    (6, 1): 'maze_eingang',             # Maze
+    (6, 2): '__RIVER__',
+    (6, 3): 'landschaft',               # landscape
+    (6, 4): 'feuerwehr_eingang',        # Fire Department
+    (6, 5): 'stadium_eingang',          # Stadium
+    (6, 6): 'airport_terminal',         # Airport
+    (6, 7): 'bau_eingang',              # Construction
+    (6, 8): None,
+    # ── ROW 7 (south edge) ───────────────────────────────────────────
+    (7, 0): 'sex_dungeon_eingang',      # Sex Dungeon
+    (7, 1): '__RIVER__',
+    (7, 2): 'berg',                     # Mountain
+    (7, 3): 'prison_eingang',           # Prison
+    (7, 4): 'storage_eingang',          # Storage
+    (7, 5): 'stark_lobby',              # Stark Tower
+    (7, 6): 'bunker_eingang',           # Bunker
+    (7, 7): 'capsule_eingang',          # Capsule Corp
+    (7, 8): 'studio_eingang',           # Studio
+}
+
+# Reverse lookup: room_key -> (row, col)
+DISTRICT_OF = {v: rc for rc, v in DISTRICT_GRID.items()
+               if v and v not in ('__RIVER__', '__FOREST__')}
+
+
+def get_district_grid_position(room_key):
+    """Return (row, col) on the Idea-Map grid for a district anchor room, or None."""
+    return DISTRICT_OF.get(room_key)
+
+
+def is_river_cell(rc):
+    """True if (row, col) is a river cell (impassable)."""
+    return DISTRICT_GRID.get(rc) == '__RIVER__'
+
+
+def get_grid_neighbors(rc):
+    """Return [(direction, neighbor_rc, neighbor_room_or_None)] for orthogonal neighbors
+    not blocked by the river."""
+    r, c = rc
+    out = []
+    for dr, dc, name in [(-1, 0, 'norden'), (1, 0, 'süden'),
+                         (0, -1, 'westen'), (0, 1, 'osten')]:
+        nrc = (r + dr, c + dc)
+        if nrc not in DISTRICT_GRID:
+            continue
+        if is_river_cell(nrc):
+            continue  # river blocks
+        out.append((name, nrc, DISTRICT_GRID[nrc]))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Auto-Layout: snap all rooms to coordinates derived from DISTRICT_GRID
+# ---------------------------------------------------------------------------
+# For each district anchor, fix its position to its (col, row) on the grid (scaled).
+# All other rooms (street rooms, internal building rooms) are placed via BFS
+# from their nearest anchor, so they cluster around the right district.
+
+# How many GRAPH_LAYOUT units per grid cell. The renderer multiplies coords by
+# UNIT = scale(50) * map_zoom, so spacing of 12 units ≈ 600px at zoom=1.
+GRID_CELL_SPACING = 12
+
+# Within a cell, sub-rooms get arranged in a small spiral around the anchor.
+# 1 step = SUBROOM_STEP layout units (small enough to stay inside the cell).
+SUBROOM_STEP = 1.5
+
+
+def compute_auto_layout(rooms):
+    """
+    Returns: dict {room_key: (x, y)} layout positions for all rooms.
+
+    Algorithm:
+      1) Place every district-anchor room at its grid (col*S, row*S) coordinate.
+      2) For every other room, BFS-walk along its exits until we find the
+         nearest already-placed anchor; place this room at anchor + small spiral offset.
+      3) Orphans go into a side strip below the grid.
+    """
+    from collections import deque
+    
+    layout = {}
+    occupied = {}  # (x, y) rounded -> room_key (for spiral collision avoidance)
+    
+    # ---- Step 1: place anchors on their grid cells ----
+    for (r, c), anchor_key in DISTRICT_GRID.items():
+        if not anchor_key or anchor_key in ('__RIVER__', '__FOREST__'):
+            continue
+        if anchor_key not in rooms:
+            continue
+        x = c * GRID_CELL_SPACING
+        y = r * GRID_CELL_SPACING
+        layout[anchor_key] = (x, y)
+        occupied[(round(x, 2), round(y, 2))] = anchor_key
+    
+    # ---- Step 2: build adjacency for BFS-from-anchors ----
+    # bidirectional graph for traversal (since some exits are one-way in the data)
+    nbrs = {rk: set() for rk in rooms}
+    for rk, rd in rooms.items():
+        for d, t in rd.get('exits', {}).items():
+            if t in rooms:
+                nbrs[rk].add(t)
+                nbrs.setdefault(t, set()).add(rk)
+    
+    # Multi-source BFS from all placed anchors. Each non-anchor room learns
+    # which anchor is its "owner" and at what BFS-depth.
+    owner = {a: a for a in layout}    # room_key -> anchor_key
+    depth = {a: 0 for a in layout}
+    queue = deque(layout.keys())
+    while queue:
+        cur = queue.popleft()
+        for nb in nbrs.get(cur, ()):
+            if nb in owner:
+                continue
+            owner[nb] = owner[cur]
+            depth[nb] = depth[cur] + 1
+            queue.append(nb)
+    
+    # ---- Step 3: place each non-anchor room in a spiral around its owner ----
+    # We'll generate spiral offsets in order so each owner gets its own counter.
+    def _spiral_offsets(n):
+        """Yield up to n (dx, dy) offsets in a square-ring spiral order."""
+        yield (0, 0)
+        if n <= 1: return
+        ring = 1
+        produced = 1
+        while produced < n:
+            for dx in range(-ring, ring + 1):
+                for dy in range(-ring, ring + 1):
+                    if abs(dx) != ring and abs(dy) != ring:
+                        continue
+                    yield (dx * SUBROOM_STEP, dy * SUBROOM_STEP)
+                    produced += 1
+                    if produced >= n: return
+            ring += 1
+    
+    # Group non-anchor rooms by their owner anchor
+    by_owner = {}
+    for rk, ow in owner.items():
+        if rk == ow:  # anchor itself
+            continue
+        by_owner.setdefault(ow, []).append(rk)
+    
+    for anchor_key, sub_rooms in by_owner.items():
+        ax, ay = layout[anchor_key]
+        # Sort sub_rooms by BFS depth so closest go to inner ring
+        sub_rooms.sort(key=lambda k: depth[k])
+        # Build full spiral once, drop (0,0) (anchor's slot)
+        offsets = list(_spiral_offsets(len(sub_rooms) + 256))[1:]
+        offset_idx = 0
+        for rk in sub_rooms:
+            placed = False
+            while offset_idx < len(offsets):
+                ox, oy = offsets[offset_idx]
+                offset_idx += 1
+                px = ax + ox
+                py = ay + oy
+                key = (round(px, 2), round(py, 2))
+                if key not in occupied:
+                    layout[rk] = (px, py)
+                    occupied[key] = rk
+                    placed = True
+                    break
+            if not placed:
+                # Last-resort: linear strip below the anchor
+                px = ax
+                py = ay + SUBROOM_STEP * (len(sub_rooms) + 1)
+                layout[rk] = (px, py)
+    
+    # ---- Step 4: orphans (rooms not connected to any anchor) ----
+    # Place them in a strip below the grid.
+    grid_max_row = max(r for (r, _) in DISTRICT_GRID)
+    orphan_y = (grid_max_row + 2) * GRID_CELL_SPACING
+    orphan_x = 0.0
+    for rk in rooms:
+        if rk not in layout:
+            layout[rk] = (orphan_x, orphan_y)
+            orphan_x += SUBROOM_STEP
+            if orphan_x > 9 * GRID_CELL_SPACING:
+                orphan_x = 0.0
+                orphan_y += SUBROOM_STEP * 2
+    
+    return layout
 
 
 # ---------------------------------------------------------------------------
