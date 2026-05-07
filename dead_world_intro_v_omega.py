@@ -168,8 +168,10 @@ haus1_dachboden_box_geschoben = False
 #Haus1 Nachttisch
 nachtschrank_auf = False
 #Safe
-safe_auf_haus1 = True
+safe_auf_haus1 = False
 safe_durchsucht_haus1 = False
+# Numpad: wartet der naechste Befehl auf den 6-stelligen Code? (Pygame-freundlich, kein input())
+numpad_awaiting_code = False
 #krankenhaus
 krankenhaus_schrank_geschoben = False
 numpad_nutzen = False
@@ -293,6 +295,7 @@ ITEM_DEFS = {
     'stück papier': Item('stück papier', 'Stück Papier', 'Ein blutiges Stück Papier.', weight=1),
     'taschenlampe': Item('taschenlampe', 'Taschenlampe', 'Eine Taschenlampe.', weight=2, charge=100),
     'goldener_pfeil': Item('goldener_pfeil', 'Goldener Pfeil', 'Ein uralter, golden schimmernder Pfeil. Er strahlt eine unheimliche Energie aus.', weight=1),
+    'gehstock': Item('gehstock', 'Gehstock', 'Ein robuster, hölzerner Gehstock mit gebogenem Griff.', weight=2),
     # --- SELTENE CONTAINER ---
     'rucksack': Item('rucksack', 'Rucksack', 'Ein robuster Militärrucksack.',
                      is_container=True, capacity=8, is_open=False, is_transparent=False, weight=3),
@@ -1217,7 +1220,7 @@ rooms = {
         'name': 'Wohnbereich',
         'description': '.',
         'exits': {'osten': 'haus_3_v', 'norden': 'küche_h3', 'süden': 'bathroom_3', 'westen': 'bedroom_3'},
-        'items': ['Gehstock'],
+        'items': ['gehstock'],
         'in_development': True
     },
     'wohnzimmer_h3': {#Haus3
@@ -1926,6 +1929,9 @@ def load_game_from_menu():
     global current_state, current_room, player_inventory, game_score, game_moves, view_mode
     global visited_rooms, visited_rooms_desc, game_start_ticks, prolog_shown, prolog_lines, prolog_line_index
     global bibliothek_4_schrank_geschoben, haus1_tür_auf, menu_music_playing
+    global haus1_dachbodentür_auf, haus1_dachboden_box_geschoben
+    global nachtschrank_auf, safe_auf_haus1, safe_durchsucht_haus1
+    global krankenhaus_schrank_geschoben, numpad_nutzen
     global scored_items, scored_kills, pending_ambiguity, game_history
     
     if not os.path.exists(SAVE_FILE):
@@ -1970,7 +1976,14 @@ def load_game_from_menu():
             ITEM_DEFS[ik].is_open = cstate.get('is_open', False)
     TRANSITIONS[:] = rebuild_transitions_from_exits()
     bibliothek_4_schrank_geschoben = data.get('bibliothek_4_schrank_geschoben', False)
-    haus1_tür_auf = data.get('haus1_tür_auf', False)
+    haus1_tür_auf = data.get('haus1_tür_auf', True)
+    haus1_dachbodentür_auf = data.get('haus1_dachbodentür_auf', False)
+    haus1_dachboden_box_geschoben = data.get('haus1_dachboden_box_geschoben', False)
+    nachtschrank_auf = data.get('nachtschrank_auf', False)
+    safe_auf_haus1 = data.get('safe_auf_haus1', False)
+    safe_durchsucht_haus1 = data.get('safe_durchsucht_haus1', False)
+    krankenhaus_schrank_geschoben = data.get('krankenhaus_schrank_geschoben', False)
+    numpad_nutzen = data.get('numpad_nutzen', False)
     for ik, charge_val in data.get('item_charges', {}).items():
         if ik in ITEM_DEFS:
             ITEM_DEFS[ik].charge = charge_val
@@ -2402,6 +2415,13 @@ def save_game():
         'elapsed_ms': pygame.time.get_ticks() - game_start_ticks,
         'bibliothek_4_schrank_geschoben': bibliothek_4_schrank_geschoben,
         'haus1_tür_auf': haus1_tür_auf,
+        'haus1_dachbodentür_auf': haus1_dachbodentür_auf,
+        'haus1_dachboden_box_geschoben': haus1_dachboden_box_geschoben,
+        'nachtschrank_auf': nachtschrank_auf,
+        'safe_auf_haus1': safe_auf_haus1,
+        'safe_durchsucht_haus1': safe_durchsucht_haus1,
+        'krankenhaus_schrank_geschoben': krankenhaus_schrank_geschoben,
+        'numpad_nutzen': numpad_nutzen,
         'item_charges': {ik: idef.charge for ik, idef in ITEM_DEFS.items() if idef.max_charge >= 0},
         'scored_items': list(scored_items),
         'scored_kills': list(scored_kills),
@@ -2421,6 +2441,9 @@ def restore_game():
     global current_room, player_inventory, game_score, game_moves, view_mode
     global visited_rooms, visited_rooms_desc, game_start_ticks
     global bibliothek_4_schrank_geschoben, haus1_tür_auf
+    global haus1_dachbodentür_auf, haus1_dachboden_box_geschoben
+    global nachtschrank_auf, safe_auf_haus1, safe_durchsucht_haus1
+    global krankenhaus_schrank_geschoben, numpad_nutzen
     global scored_items, scored_kills
     try:
         with open(SAVE_FILE, 'r', encoding='utf-8') as f:
@@ -2453,8 +2476,14 @@ def restore_game():
             ITEM_DEFS[ik].is_open = cstate.get('is_open', False)
     TRANSITIONS[:] = rebuild_transitions_from_exits()
     bibliothek_4_schrank_geschoben = data.get('bibliothek_4_schrank_geschoben', False)
-    haus1_tür_auf = data.get('haus1_tür_auf', False)
-    # Restore item charges (light sources)
+    haus1_tür_auf = data.get('haus1_tür_auf', True)
+    haus1_dachbodentür_auf = data.get('haus1_dachbodentür_auf', False)
+    haus1_dachboden_box_geschoben = data.get('haus1_dachboden_box_geschoben', False)
+    nachtschrank_auf = data.get('nachtschrank_auf', False)
+    safe_auf_haus1 = data.get('safe_auf_haus1', False)
+    safe_durchsucht_haus1 = data.get('safe_durchsucht_haus1', False)
+    krankenhaus_schrank_geschoben = data.get('krankenhaus_schrank_geschoben', False)
+    numpad_nutzen = data.get('numpad_nutzen', False)
     for ik, charge_val in data.get('item_charges', {}).items():
         if ik in ITEM_DEFS:
             ITEM_DEFS[ik].charge = charge_val

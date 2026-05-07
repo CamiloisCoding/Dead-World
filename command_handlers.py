@@ -95,6 +95,9 @@ def handle_help(cmd):
 # MOVEMENT
 # ========================
 # Direction alias map
+# Hinweis: Der Dispatcher kuerzt jedes Wort auf 9 Zeichen.
+# Daher muessen wir laengere Schreibweisen auch in ihrer 9-Zeichen-Form
+# eintragen, sonst wird die Bewegung nicht erkannt.
 _DIRECTION_MAP = {
     'n': 'norden', 'norden': 'norden', 'nord': 'norden',
     'o': 'osten', 'osten': 'osten', 'ost': 'osten',
@@ -102,7 +105,10 @@ _DIRECTION_MAP = {
     'w': 'westen', 'westen': 'westen', 'west': 'westen',
     'so': 'südosten', 'südosten': 'südosten', 'suedosten': 'südosten',
     'süd-osten': 'südosten', 'sued-osten': 'südosten',
+    'sued-oste': 'südosten',  # truncation von 'sued-osten' (10) -> 9
     'nw': 'nordwesten', 'nordwesten': 'nordwesten', 'nord-westen': 'nordwesten',
+    'nordweste': 'nordwesten',  # truncation von 'nordwesten' (10) -> 9
+    'nord-west': 'nordwesten',  # truncation von 'nord-westen' (11) -> 9
     'h': 'hoch', 'hoch': 'hoch', 'up': 'hoch',
     'r': 'runter', 'runter': 'runter', 'down': 'runter',
 }
@@ -187,7 +193,7 @@ def handle_item_commands(cmd):
         if item == 'tagebuch':
             _h("Im Tagebuch hast du deine letzen 2 Jahre in diesem haus Dokumentiert.")
             _h("Jeder einzelne zombie oder Mensch der versuchte reinzukommen.")
-        elif item == 'Stück Papier':
+        elif item == 'stück papier':
             _h("Ein stück Papier, es hat blut schmieren drauf, teile der Notiz dadurch unlesbar.")
             _h("Sie sind üb....... nirgends ist man sicher. Alles geshah nu........... em Präs......... abor.")
         return True
@@ -371,14 +377,17 @@ def handle_combat_commands(cmd):
                     _h("")
                 else:
                     enemy = enemies.get(enemy_in_room)
+                    if not enemy:
+                        _h("Es gibt hier nichts zum Angreifen!")
+                        _h("")
+                        return True
                     t = target.lower().strip()
                     enemy_words = [enemy_in_room] + enemy['name'].lower().replace('-', ' ').split()
                     if t == enemy_in_room or t in enemy_words:
                         _game.attack_with_weapon(target, weapon_name)
                     else:
                         _h(f"Hier ist kein '{target}'.")
-                        if enemy:
-                            _h(f"Hier ist: {enemy['name']}")
+                        _h(f"Hier ist: {enemy['name']}")
                         _h("")
             else:
                 _h("Falsches Format. Nutze: schlag [ziel] mit [waffe]")
@@ -392,14 +401,17 @@ def handle_combat_commands(cmd):
                 _h("")
             else:
                 enemy = enemies.get(enemy_in_room)
+                if not enemy:
+                    _h("Es gibt hier nichts zum Angreifen!")
+                    _h("")
+                    return True
                 t = target.lower().strip()
                 enemy_words = [enemy_in_room] + enemy['name'].lower().replace('-', ' ').split()
                 if t == enemy_in_room or t in enemy_words:
                     _game.unarmed_attack(target)
                 else:
                     _h(f"Hier ist kein '{target}'.")
-                    if enemy:
-                        _h(f"Hier ist: {enemy['name']}")
+                    _h(f"Hier ist: {enemy['name']}")
                     _h("")
         return True
 
@@ -571,10 +583,54 @@ def handle_system_commands(cmd):
 # ========================
 # INTERACTION COMMANDS
 # ========================
-def handle_interaction_commands(cmd):
-    """Handles: schieben, aufbrechen"""
+def _has_any(text, *needles):
+    """True wenn mindestens eines der Suchwörter in text vorkommt."""
+    return any(n in text for n in needles)
 
-    if cmd in ('schieben', 'schieb', 'regal schieben', 'schrank schieben', 'bücherregal schieben'):
+
+def _has_all(text, *needles):
+    """True wenn alle Suchwörter in text vorkommen."""
+    return all(n in text for n in needles)
+
+
+def handle_interaction_commands(cmd):
+    """Handles: schieben, aufbrechen, Türen, Schubladen, Safe, Numpad.
+
+    Wichtig: Der Dispatcher in process_command() macht bereits:
+        cmd = command.lower().strip()
+        words = [w[:9] for w in cmd.split()]
+    Deshalb dürfen wir hier nur LOWERCASE-Strings vergleichen und müssen
+    mit Substrings arbeiten (z.B. 'bücherreg' statt 'bücherregal'),
+    weil lange Wörter auf 9 Zeichen gekürzt werden.
+    """
+
+    # ------------------------------------------------------------
+    # NUMPAD: Code-Eingabe — wird als nächster Befehl erwartet.
+    # Wir benutzen kein input() (das würde pygame einfrieren),
+    # sondern setzen ein Flag und werten den NÄCHSTEN Befehl aus.
+    # ------------------------------------------------------------
+    if getattr(_game, 'numpad_awaiting_code', False):
+        _game.numpad_awaiting_code = False
+        code_str = cmd.strip()
+        if code_str.isdigit():
+            if int(code_str) == 123456:
+                _game.numpad_nutzen = True
+                _game.unlock_transition('krankenhaus_geheim_treppe')
+                _h("Du tippst die Ziffern langsam ein...")
+                _h("Klick. *Beep* Die Tür summt — und öffnet sich.")
+                _h("")
+            else:
+                _h("Falscher Code. Die Tür bleibt verschlossen.")
+                _h("")
+        else:
+            _h("Numpad-Eingabe abgebrochen.")
+            _h("")
+        return True
+
+    # ------------------------------------------------------------
+    # BIBLIOTHEK: Bücherregal schieben
+    # ------------------------------------------------------------
+    if _has_any(cmd, 'schieb', 'beweg') and _has_any(cmd, 'regal', 'bücherreg'):
         if _game.current_room == 'bibliothek_3':
             if not _game.bibliothek_4_schrank_geschoben:
                 _game.bibliothek_4_schrank_geschoben = True
@@ -586,97 +642,15 @@ def handle_interaction_commands(cmd):
             else:
                 _h("Das Bücherregal wurde bereits zur Seite geschoben.")
                 _h("")
-        else:
-            _h("Hier gibt es nichts zum Schieben.")
-            _h("")
+            return True
+        _h("Hier gibt es kein Bücherregal zum Schieben.")
+        _h("")
         return True
 
-    if cmd in ('Brech auf', 'Zerhacke tür', 'schlage tür auf', 'tür aufbrechen', 'tür mit Axt aufschalgen'):
-        if _game.current_room == 'haus1' and 'axt' in _game.player_inventory:
-            if not _game.haus1_tür_auf:
-                _game.haus1_tür_auf = True
-                _game.unlock_transition('haus1_tür')
-                _h("Du nimmst die Axt in die Hände")
-                _h("Mit wucht schlägst du mit der Axt auf die Tür ein")
-                _h("Man kann nun ins Haus rein")
-                _h("")
-            else:
-                _h("Die Tür ist bereits aufgebrochen")
-                _h("")
-        else:
-            _h("Du hast nichts um die Tür zu öffnen.")
-            _h("")
-        return True
-
-    if cmd in ('Ziehe die Dachbodentür runter', 'ziehe die dachbodentür runter', 'dachbodentür runterziehen', 'Mit dem Gehstock die Dachbodentür öffnen'):
-        if _game.current_room == 'haus1_dachbodentür' and 'Gehstock' in _game.player_inventory:
-            if not _game.haus1_dachbodentür_auf:
-                _game.haus1_dachbodentür_auf = True
-                _game.unlock_transition('haus1_dachbodentür')
-                _h("Du nimmst den Gehstock in die Hände")
-                _h("Mit einem schwung hackts du dich in den griff der Dachbodentür")
-                _h("Nach einem Guten ruck nach unten ist die Dachbodentür offen")
-                _h("")
-            else:
-                _h("Die Tür ist bereits unten")
-                _h("")
-        else:
-            _h("Die Tür ist zu weit oben um dran zukommen")
-            _h("")
-        return True
-
-    if cmd in ('Nachtschrank öffnen', 'öffne nachtschrank', 'Nachtschrank auf', 'öffne nachtschrank'):
-        if _game.current_room == 'haus1_schlafzimmer':
-            if not _game.nachtschrank_auf:
-                _game.nachtschrank_auf = True
-                _game.unlock_transition('haus1_schlafzimmer_nachtschrank')
-                _h("Du ziehst die Schublade des Nachtschrankes auf")
-                _h("Ein zettel liegt drin")
-                _h("Auf dem Zettel steht die Kombination für einen safe")
-                _h("")
-            else:
-                _h("Die Schublade ist bereits auf")
-                _h("")
-        else:
-            _h("Hier gibt es keinen Nachtschrank.")
-            _h("")
-        return True
-    
-    if cmd in ('Safe öffnen', 'Öffne Safe', 'Safe auf machen'):
-        if _game.current_room == 'haus1_dachboden' and _game.nachtschrank_auf == True :
-            if not _game.safe_auf:
-                _game.safe_auf = True
-                _game.unlock_transition('haus1_dachboden_safe')
-                _h("Du gibst die Combinationen ein")
-                _h("Je richtige zahl ertönt ein leises klicken")
-                _h("Nach der richtigen Combination hörst du ein lauten klick")
-                _h("")
-            else:
-                _h("Das Safe ist bereits auf")
-                _h("")
-        else:
-            _h("Es gibt hier keinen safe.")
-            _h("")
-        return True
-
-    if cmd in ('Safe durchsuchen', 'Durchsuche Safe', 'Durchsuche den safe'):
-        if _game.current_room == 'haus1_dachboden' and _game.safe_auf_haus1 == True and _game.safe_durchsucht_haus1 == False :
-            if not _game.safe_durchsucht_haus1:
-                _game.safe_durchsucht_haus1 = True
-                _game.unlock_transition('haus1_dachboden_safe')
-                _h("Im Safe liegen 50 ammo,")
-                _h("")
-                _h("")
-                _h("")
-            else:
-                _h("Das Safe ist bereits durchsucht")
-                _h("")
-        else:
-            _h("Es gibt hier keinen safe.")
-            _h("")
-        return True
-
-    if 'schrank' in cmd and ('schieb' in cmd or 'bewege' in cmd):
+    # ------------------------------------------------------------
+    # KRANKENHAUS: Schrank schieben (Labor)
+    # ------------------------------------------------------------
+    if _has_any(cmd, 'schieb', 'beweg') and 'schrank' in cmd and 'nachtschr' not in cmd:
         in_hospital_labor_area = (
             _game.current_room in ('krankenhaus_labor', 'krankenhaus_Labor')
             or str(_game.current_room).startswith('krankenhaus_labor')
@@ -685,58 +659,183 @@ def handle_interaction_commands(cmd):
             if not _game.krankenhaus_schrank_geschoben:
                 _game.krankenhaus_schrank_geschoben = True
                 _game.unlock_transition('krankenhaus_geheim_treppe')
-                _h("Du schiebst den Schrank zur Seite")
-                _h("Da hinter ist eine Tür mit einem Nummern pad")
-                _h("Ein fenster in der Tür zeigt eine treppe die nach unter führt")
+                _h("Du schiebst den Schrank langsam zur Seite...")
+                _h("Dahinter ist eine Tür mit einem Nummern-Pad.")
+                _h("Ein kleines Fenster zeigt eine Treppe nach unten.")
                 _h("")
             else:
-                _h("Der Schrank ist bereits aus dem Weg")
+                _h("Der Schrank ist bereits aus dem Weg.")
                 _h("")
-        elif str(_game.current_room).startswith('krankenhaus_'):
+            return True
+        if str(_game.current_room).startswith('krankenhaus_'):
             _h("Hier steht kein relevanter Schrank.")
             _h("")
-        else:
-            _h("Hier ist kein schrank zum Schieben")
-            _h("")
+            return True
+        _h("Hier ist kein Schrank zum Schieben.")
+        _h("")
         return True
-        
-    if cmd in (
-        'benutze nummern pad',
-        'nummern pad benutzen',
-        'verwende nummern pad',
-        'verwende nummernpad',
-        'benutze nummernpad',
-        'nummernpad benutzen',
-        'benutze numpad',
-        'numpad benutzen',
+
+    # ------------------------------------------------------------
+    # "schieben" ohne Objekt -> erkenne anhand des Raums
+    # ------------------------------------------------------------
+    if cmd in ('schieb', 'schieben'):
+        if _game.current_room == 'bibliothek_3':
+            return handle_interaction_commands('schiebe regal')
+        if str(_game.current_room).startswith('krankenhaus_labor'):
+            return handle_interaction_commands('schiebe schrank')
+        _h("Was möchtest du schieben?")
+        _h("")
+        return True
+
+    # ------------------------------------------------------------
+    # HAUS1: Tür mit Axt aufbrechen
+    # 'aufbrechen' (10) -> getrunkat. 'aufbreche' (9). Beide Varianten erlaubt.
+    # ------------------------------------------------------------
+    if (
+        ('tür' in cmd and _has_any(cmd, 'aufbreche', 'aufschlag', 'aufschalg', 'zerhacke'))
+        or _has_all(cmd, 'brech', 'auf')
+        or (_has_any(cmd, 'schlag', 'schlage') and 'tür' in cmd)
     ):
-        if (
-            _game.current_room in ('krankenhaus_geheim_treppe', 'krankenhaus_Labor', 'krankenhaus_labor')
-            or str(_game.current_room).startswith('krankenhaus_labor')
-        ) and _game.krankenhaus_schrank_geschoben:
-            if not _game.numpad_nutzen:
-                _game.numpad_nutzen = True
+        if _game.current_room == 'haus1':
+            if 'axt' not in _game.player_inventory:
+                _h("Du brauchst etwas Schweres, um die Tür aufzubrechen — eine Axt vielleicht.")
                 _h("")
-                try:
-                    codetry = int(input("Gib einen 6-stelligen Code ein... ").strip())
-                except (ValueError, EOFError):
-                    _game.numpad_nutzen = False
-                    _h("Ungueltige Eingabe. Bitte gib nur Zahlen ein.")
-                    _h("")
-                    return True
-                if codetry == 123456:
-                    _h("Die Tür öffnet sich.")
-                elif codetry == 0:
-                    _game.numpad_nutzen = False
-                else:
-                    _h("Falscher Code.")
-        elif _game.current_room in ('krankenhaus_Labor', 'krankenhaus_labor'):
-            _h("Das Nummern-Pad ist hinter dem Schrank. Schiebe erst den Schrank zur Seite.")
+                return True
+            if not _game.haus1_tür_auf:
+                _game.haus1_tür_auf = True
+                _game.unlock_transition('haus1_tür')
+                _h("Du nimmst die Axt fest in beide Hände.")
+                _h("Mit voller Wucht schlägst du auf die Tür ein!")
+                _h("Splitter fliegen — der Weg ins Haus ist frei.")
+                _h("")
+            else:
+                _h("Die Tür ist bereits aufgebrochen.")
+                _h("")
+            return True
+        _h("Hier ist keine verschlossene Tür zum Aufbrechen.")
+        _h("")
+        return True
+
+    # ------------------------------------------------------------
+    # HAUS1: Dachbodentür mit Gehstock herunterziehen
+    # 'dachbodentür' (12) -> trunkat. 'dachboden' (9). Substring 'dachboden' deckt beides ab.
+    # ------------------------------------------------------------
+    if 'dachboden' in cmd and _has_any(cmd, 'ziehe', 'runter', 'öffne', 'oeffne', 'gehstock'):
+        if _game.current_room == 'haus1_dachbodentür':
+            if 'gehstock' not in _game.player_inventory:
+                _h("Der Griff der Dachbodentür ist zu hoch — du brauchst etwas Langes wie einen Gehstock.")
+                _h("")
+                return True
+            if not _game.haus1_dachbodentür_auf:
+                _game.haus1_dachbodentür_auf = True
+                _game.unlock_transition('haus1_dachbodentür')
+                _h("Du nimmst den Gehstock und hakst ihn in den Griff der Dachbodentür.")
+                _h("Mit einem festen Ruck öffnet sich die Klappe — die Leiter klappt herunter.")
+                _h("")
+            else:
+                _h("Die Dachbodentür ist bereits offen.")
+                _h("")
+            return True
+        _h("Hier gibt es keine Dachbodentür.")
+        _h("")
+        return True
+
+    # ------------------------------------------------------------
+    # HAUS1: Nachtschrank öffnen
+    # 'nachtschrank' (12) -> trunkat. 'nachtschr' (9). Substring 'nachtschr' deckt beides ab.
+    # ------------------------------------------------------------
+    if 'nachtschr' in cmd and _has_any(cmd, 'öffne', 'oeffne', 'auf'):
+        if _game.current_room == 'haus1_schlafzimmer':
+            if not _game.nachtschrank_auf:
+                _game.nachtschrank_auf = True
+                _game.unlock_transition('haus1_schlafzimmer_nachtschrank')
+                _h("Du ziehst die Schublade des Nachtschrankes auf.")
+                _h("Ein Zettel liegt darin.")
+                _h("Auf dem Zettel steht eine Kombination für einen Safe: 123456")
+                _h("")
+            else:
+                _h("Die Schublade ist bereits auf.")
+                _h("")
+            return True
+        _h("Hier gibt es keinen Nachtschrank.")
+        _h("")
+        return True
+
+    # ------------------------------------------------------------
+    # HAUS1: Safe öffnen
+    # ------------------------------------------------------------
+    if 'safe' in cmd and _has_any(cmd, 'öffne', 'oeffne', 'auf') and 'durchsuch' not in cmd:
+        if _game.current_room != 'haus1_dachboden':
+            _h("Hier gibt es keinen Safe.")
             _h("")
-        else:
+            return True
+        if not _game.nachtschrank_auf:
+            _h("Du kennst die Kombination nicht. Du müsstest sie erst irgendwo finden.")
+            _h("")
+            return True
+        if _game.safe_auf_haus1:
+            _h("Der Safe ist bereits offen.")
+            _h("")
+            return True
+        _game.safe_auf_haus1 = True
+        _game.unlock_transition('haus1_dachboden_safe')
+        _h("Du gibst die Kombination langsam ein.")
+        _h("Bei jeder richtigen Zahl ertönt ein leises Klicken.")
+        _h("Nach der letzten Ziffer hörst du ein lautes Klick — der Safe öffnet sich.")
+        _h("")
+        return True
+
+    # ------------------------------------------------------------
+    # HAUS1: Safe durchsuchen
+    # 'durchsuchen' (11) -> trunkat. 'durchsuch' (9).
+    # ------------------------------------------------------------
+    if 'safe' in cmd and 'durchsuch' in cmd:
+        if _game.current_room != 'haus1_dachboden':
+            _h("Hier gibt es keinen Safe.")
+            _h("")
+            return True
+        if not _game.safe_auf_haus1:
+            _h("Der Safe ist verschlossen — du musst ihn erst öffnen.")
+            _h("")
+            return True
+        if _game.safe_durchsucht_haus1:
+            _h("Den Safe hast du bereits durchsucht. Er ist leer.")
+            _h("")
+            return True
+        _game.safe_durchsucht_haus1 = True
+        _h("Im Safe liegen 50 Schuss Munition.")
+        _h("Du steckst sie ein.")
+        _h("")
+        return True
+
+    # ------------------------------------------------------------
+    # KRANKENHAUS: Numpad benutzen
+    # ------------------------------------------------------------
+    if _has_any(cmd, 'numpad', 'nummernpad') or _has_all(cmd, 'nummern', 'pad'):
+        in_lab_area = (
+            str(_game.current_room).startswith('krankenhaus_labor')
+            or _game.current_room in ('krankenhaus_Labor', 'krankenhaus_geheim_treppe')
+        )
+        if not in_lab_area:
             _h("Hier ist kein Nummern-Pad.")
             _h("")
+            return True
+        if not _game.krankenhaus_schrank_geschoben:
+            _h("Das Nummern-Pad ist hinter dem Schrank. Schiebe erst den Schrank zur Seite.")
+            _h("")
+            return True
+        if _game.numpad_nutzen:
+            _h("Die Tür hinter dem Numpad ist bereits offen.")
+            _h("")
+            return True
+        _game.numpad_awaiting_code = True
+        _h("Du legst deine Hand auf das Nummern-Pad.")
+        _h("Tippe die 6 Ziffern als nächsten Befehl ein.")
+        _h("(Beispiel: 123456)")
+        _h("")
         return True
+
+    return False
 
 # ========================
 # CONTAINER COMMANDS
