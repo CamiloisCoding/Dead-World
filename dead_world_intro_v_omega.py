@@ -729,7 +729,7 @@ rooms = {
     'krankenhaus_Rezeption': {#Krankenhaus
         'name': 'Krankenhaus - Rezeption',
         'description': 'In der Rezeption sind weitere bänke und schränke, 2 PCs sind immernoch am stehen aber sind unbenutzbar, im Westen führt es tiefer ins Gebäude rein.',
-        'exits': {'osten': 'krankenhaus_wartebereich','westen': 'krankenhaus_flur_osten'},
+        'exits': {'Norden': 'krankenhaus_Flur','westen': 'krankenhaus_flur_osten'},
         'items': [],
         'in_development': False
     },
