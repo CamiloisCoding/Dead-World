@@ -770,70 +770,70 @@ rooms = {
     },
     'krankenhaus_Labor': {#Krankenhaus
         'name': 'Krankenhaus - Labor',
-        'description': 'Mehrere Microskope,.',
+        'description': 'Mehrere Microskope, reagenzgläser und dokumente liegen verwüsted herrum, schränke offen, unter einem schrank sind spuren als wäre er öffters verrückt worden.',
         'exits': {'osten': 'krankenhaus_labor_rezeption','Süden':'krankenhaus_geheim_treppe'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_geheim_treppe': {#Krankenhaus
         'name': 'Krankenhaus - Labor Treppe',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Eine Treppe die Tief runter führt in einen anderen Bereich.Ein Numpad an der Wand um die Tür zu öffnen',
         'exits': {'Norden': 'krankenhaus_Labor'},
         'items': [],
         'in_development': False
     },
     'gl_empfang': {#Geheimlabor
         'name': 'Geheimlabor - Empfang',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Der Empfang nur Leicht verwüsted im Gegensatz zu dem Im krankenhaus.Im Süden Liegt ein Abstellraum und im Osten eine Tür die nur durch ein Sicherheitsarmband öffnungsbar erscheint',
         'exits': {'Süden': 'gl_lagerraum', 'Osten': 'gl_sicherheits_flur'},
         'items': [],
         'in_development': False
     },
     'gl_lagerraum': {#Geheimlabor
-        'name': 'Geheimlabor - Lagerraum',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'name': 'Geheimlabor - Abstellraum',
+        'description': 'Ein kleiner abstellraum indem sich kleine Schränke befinden.',
         'exits': {'Norden':'gl_empfang'},
         'items': ['keycard_armband_lvl1'],
         'in_development': False
     }, 
     'gl_sicherheits_flur': {#Geheimlabor
         'name': 'Geheimlabor - Sicherheits Flur',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Im Flur wird man desinfiziert um eine kontaminierung vorzubeugen.',
         'exits': {'Westen':'gl_empfang','Osten': 'gl_sicherheits_lvl1_flur'},
         'items': [],
         'in_development': False
     },
     'gl_sicherheits_lvl1_flur': {#Geheimlabor
         'name': 'Geheimlabor - Sicherheit lvl1 Flur',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Ein Gang wo man zu den Schlafsaal und kafeteria hinkommt.',
         'exits': {'Norden':'gl_Schlafsaal','Osten': 'gl_kafeteria','Süden': 'gl_sicherheits_lvl2_flur','westen':'gl_sicherheits_flur'},
         'items': [],
         'in_development': False
     },
     'gl_schlafsaal': {#Geheimlabor
         'name': 'Geheimlabor - Schlafsaal',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Der Hausungs ort für manche Mitarbeiter, geimeinde Räume zum Schlafen, die liegen im Osten, Westen und Norden.',
         'exits': {'Norden':'gl_schlafzimmer1','Westen': ' gl_schlafzimmer2','Osten': 'gl_schlafzimmer3','Süden': 'gl_sicherheits_lvl1_flur'},
         'items': [],
         'in_development': False
     }, 
     'gl_schlafzimmer1': {#Geheimlabor
         'name': 'Geheimlabor - Schlafzimmer 1',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Mehrere Betten in einem Raum für die Hausung von Mitarbeitern.',
         'exits': {'Süden': 'gl_schlafsaal'},
         'items': [],
         'in_development': False
     }, 
     'gl_schlafzimmer2': {#Geheimlabor
         'name': 'Geheimlabor - Schlafzimmer 2',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'In diesem Raum sind 2 Betten beide mit nem Nachtschrank.',
         'exits': {'Osten': 'gl_schlafsaal'},
         'items': [],
         'in_development': False
     }, 
     'gl_schlafzimmer3': {#Geheimlabor
         'name': 'Geheimlabor - Schlafzimmer 3',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im WESTEN liegt der Schlafsaal; nach OSTEN führt ein enger Lüftungsschacht in die Küche.',
+        'description': 'Ein Paar betten sind in diesem Raum, es sieht so aus als würdest du mit einem bett an den Lüftungsschacht in der Decke ankommen.',
         'exits': {'Westen': 'gl_schlafsaal', 'Osten': 'gl_küche'},
         'items': ['keycard_armband_lvl2'],
         'zombie_spawn': True,
@@ -841,21 +841,21 @@ rooms = {
     },
     'gl_kafeteria': {#Geheimlabor
         'name': 'Geheimlabor - Kafeteria',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Der Essensbereich, mehrere tische mit stühlen zum Essen für die Mitarbeiter.',
         'exits': {'Osten': 'gl_küche','Süden': 'gl_sicherheits_lvl1_flur'},
         'items': [],
         'in_development': False
     }, 
     'gl_küche': {#Geheimlabor
         'name': 'Geheimlabor - Küche',
-        'description': 'Edelstahl und fliesierte Wände. Im OSTEN geht es zur Kafeteria. Im WESTEN öffnet sich ein loser Lüftungsschacht — dahinter liegt Schlafzimmer 3.',
+        'description': 'Edelstahl und fliesierte Wände. Hier stehen ein paar Öfen, schränke und Kühlschränke im Raum. In der mitte ist ein platz zur zubereitung vom Essen, an der Decke dadüber ist ein Lüftungs schacht welcher aussieht als käme man damit ins Schlafzimmer 3.',
         'exits': {'Osten': 'gl_kafeteria', 'Westen': 'gl_schlafzimmer3'},
         'items': [],
         'in_development': False
     }, 
     'gl_sicherheits_lvl2_flur': {#Geheimlabor
         'name': 'Geheimlabor - Sicherheit lvl2 Flur',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Von diesem Flur aus Kommt man zu wichtigeren teilen des Geheimlabors. Im Süden ein Biolabor, Im Osten ein Presentationsraum und im Westen ein Labor was der Untersuchung gilt.',
         'exits': {'Norden':'gl_sicherheits_lvl1_flur','Osten': 'gl_presentationsraum','Westen':'gl_labor','Süden':'gl_bio_labor'},
         'items': [],
         'in_development': False
@@ -3008,27 +3008,22 @@ def process_command(command):
     
     cmd = command.lower().strip()
 
-    # === Objekt-/Schlüssel-Auflösung (ohne globales Token-Kürzen) ===
-    # Früher wurden alle Wörter auf 9 Zeichen gekürzt — das zerstörte lange Item-IDs und deutsche Wörter.
-    # Verben/Richtungen bleiben im ersten Token unverändert (z.B. „n“, „gehe“, „schieße“).
-    # Ab dem zweiten Token: exakte Schlüssel oder eindeutige Präfix-Treffer auf Spiel-Datenkeys.
-    OBJECT_PREFIX_MIN_LEN = 3
-    words_raw = cmd.split()
+    # === 9-Letter Truncation ===
+    # Lange IDs (z.B. keycard_armband_lvl1/2/3) teilen die ersten 9 Zeichen („keycard_a“).
+    # Ohne zusätzliche Logik bleibt der Token dann kein gültiger Schlüssel — „nimm“ schlägt fehl.
+    raw_words = cmd.split()
+    words = [w[:9] for w in raw_words]
     room = rooms.get(current_room, {})
     room_items = room.get('items', [])
     all_keys = set(ITEM_DEFS.keys()) | set(weapons.keys()) | set(room_items) | set(player_inventory)
     resolved_words = []
-    for wi, rw in enumerate(words_raw):
-        if wi == 0:
-            resolved_words.append(rw)
-            continue
+    for wi, w in enumerate(words):
+        rw = raw_words[wi]
+        # Vollständige interne ID (auch wenn länger als 9 Zeichen)
         if rw in all_keys:
             resolved_words.append(rw)
             continue
-        if len(rw) < OBJECT_PREFIX_MIN_LEN:
-            resolved_words.append(rw)
-            continue
-        matches = [k for k in all_keys if len(k) > len(rw) and k.startswith(rw)]
+        matches = [k for k in all_keys if k[:9] == w and k != w]
         if len(matches) == 1:
             resolved_words.append(matches[0])
         elif len(matches) > 1:
@@ -3040,9 +3035,9 @@ def process_command(command):
             if len(in_inv) == 1:
                 resolved_words.append(in_inv[0])
                 continue
-            resolved_words.append(rw)
+            resolved_words.append(w)
         else:
-            resolved_words.append(rw)
+            resolved_words.append(w)
     words = resolved_words
     cmd = ' '.join(words)
 
