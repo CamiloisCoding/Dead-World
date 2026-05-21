@@ -870,7 +870,7 @@ rooms = {
     'gl_labor_flur': {#Geheimlabor
         'name': 'Geheimlabor - Labor Flur',
         'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
-        'exits': {'Norden': 'gl_Labor','Osten':'gl_drogen_test_labor'},
+        'exits': {'Norden': 'gl_Labor','Süden':'gl_drogen_test_labor'},
         'items': [],
         'in_development': False
     },
