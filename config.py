@@ -113,7 +113,8 @@ food_items = {
 # Gegner-Datenbank
 enemies = {
     'zombie': {'name': 'Toxoplasma-Zombie', 'health': 100, 'max_health': 100, 'damage': [8, 20], 'distance': 'nah'},
-    'infizierter': {'name': 'Infizierter Mensch', 'health': 80, 'max_health': 80, 'damage': [8, 15], 'distance': 'mittel'}
+    'infizierter': {'name': 'Infizierter Mensch', 'health': 80, 'max_health': 80, 'damage': [8, 15], 'distance': 'mittel'},
+    'geheimlabor_boss': {'name': 'Mutierter Labor-Leiter', 'health': 280, 'max_health': 280, 'damage': [18, 38], 'distance': 'nah'},
 }
 
 # ========================

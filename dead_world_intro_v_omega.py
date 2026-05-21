@@ -301,6 +301,9 @@ ITEM_DEFS = {
                      is_container=True, capacity=8, is_open=False, is_transparent=False, weight=3),
     'kiste': Item('kiste', 'Kiste', 'Eine schwere Holzkiste.',
                   is_container=True, capacity=5, is_open=False, is_transparent=False, weight=10),
+    'keycard_armband_lvl1': Item('keycard_armband_lvl1', 'Keycard-Armband (Stufe 1)', 'Ein RFID-Sicherheitsarmband mit Zugangslevel 1.', weight=1),
+    'keycard_armband_lvl2': Item('keycard_armband_lvl2', 'Keycard-Armband (Stufe 2)', 'Ein RFID-Sicherheitsarmband mit Zugangslevel 2.', weight=1),
+    'keycard_armband_lvl3': Item('keycard_armband_lvl3', 'Keycard-Armband (Stufe 3)', 'Ein RFID-Sicherheitsarmband mit höchstem Zugangslevel.', weight=1),
 }
 
 def get_item_name(key):
@@ -790,7 +793,7 @@ rooms = {
         'name': 'Geheimlabor - Lagerraum',
         'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
         'exits': {'Norden':'gl_empfang'},
-        'items': ['ID Armband Lvl 1'],
+        'items': ['keycard_armband_lvl1'],
         'in_development': False
     }, 
     'gl_sicherheits_flur': {#Geheimlabor
@@ -830,9 +833,9 @@ rooms = {
     }, 
     'gl_schlafzimmer3': {#Geheimlabor
         'name': 'Geheimlabor - Schlafzimmer 3',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
-        'exits': {'Westen': 'gl_schlafsaal'},
-        'items': [],
+        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im WESTEN liegt der Schlafsaal; nach OSTEN führt ein enger Lüftungsschacht in die Küche.',
+        'exits': {'Westen': 'gl_schlafsaal', 'Osten': 'gl_küche'},
+        'items': ['keycard_armband_lvl2'],
         'zombie_spawn': True,
         'in_development': False
     },
@@ -844,9 +847,9 @@ rooms = {
         'in_development': False
     }, 
     'gl_küche': {#Geheimlabor
-        'name': 'Geheimlabor - Schlafsaal',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
-        'exits': {'Osten': 'gl_kafeteria'},
+        'name': 'Geheimlabor - Küche',
+        'description': 'Edelstahl und fliesierte Wände. Im OSTEN geht es zur Kafeteria. Im WESTEN öffnet sich ein loser Lüftungsschacht — dahinter liegt Schlafzimmer 3.',
+        'exits': {'Osten': 'gl_kafeteria', 'Westen': 'gl_schlafzimmer3'},
         'items': [],
         'in_development': False
     }, 
@@ -889,6 +892,7 @@ rooms = {
         'name': 'Geheimlabor - Boss Raum',
         'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
         'exits': {'Norden': 'gl_test_labor','Osten':'gl_büro'},
+        'enemy': 'geheimlabor_boss',
         'items': [],
         'in_development': False
     },
@@ -3157,6 +3161,7 @@ def ranged_attack(target):
             player_stats['in_combat'] = False
             zombie_kill_times[current_room] = time.time()  # Respawn-Cooldown starten
             add_score('zombie_kill', context=current_room)
+            grant_enemy_loot_on_death(enemy_in_room)
         else:
             # Gegner-Gegenangriff
             enemy_counterattack(enemy)
@@ -3496,6 +3501,18 @@ def level_up_fists():
     add_to_history("=================================")
 
 
+def grant_enemy_loot_on_death(enemy_key):
+    """Legt raumspezifische Beute nach einem Kill auf den Boden."""
+    room = rooms[current_room]
+    if enemy_key == 'geheimlabor_boss' and current_room == 'gl_boss_raum':
+        loot = 'keycard_armband_lvl3'
+        bucket = room.setdefault('items', [])
+        if loot not in bucket:
+            bucket.append(loot)
+            add_to_history("")
+            add_to_history(f"Am Boden liegt nun ein {get_item_name(loot)}.")
+
+
 def handle_melee_qte(success, data):
     """Verarbeitet Nahkampf QTE Ergebnis"""
     weapon = data['weapon']
@@ -3543,8 +3560,11 @@ def handle_melee_qte(success, data):
         if enemy['health'] <= 0:
             stop_zombie_sounds()
             add_to_history("")
-            add_to_history("Der Zombie zuckt ein letztes Mal.")
-            add_to_history("Schwarze Flüssigkeit sickert aus dem zerschmetterten Schädel.")
+            if target == 'zombie':
+                add_to_history("Der Zombie zuckt ein letztes Mal.")
+                add_to_history("Schwarze Flüssigkeit sickert aus dem zerschmetterten Schädel.")
+            else:
+                add_to_history(f"{enemy['name']} sackt schwer zusammen.")
             add_to_history("")
             add_to_history("=== SIEG ===")
             add_to_history("")
@@ -3554,6 +3574,7 @@ def handle_melee_qte(success, data):
             player_stats['in_combat'] = False
             zombie_kill_times[current_room] = time.time()  # Respawn-Cooldown starten
             add_score('zombie_kill', context=current_room)
+            grant_enemy_loot_on_death(target)
             
             # Raumspezifische Belohnungen
             if current_room == 'start':
