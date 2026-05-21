@@ -3009,15 +3009,33 @@ def process_command(command):
     cmd = command.lower().strip()
 
     # === 9-Letter Truncation ===
-    words = cmd.split()
-    words = [w[:9] for w in words]
+    # Lange IDs (z.B. keycard_armband_lvl1/2/3) teilen die ersten 9 Zeichen („keycard_a“).
+    # Ohne zusätzliche Logik bleibt der Token dann kein gültiger Schlüssel — „nimm“ schlägt fehl.
+    raw_words = cmd.split()
+    words = [w[:9] for w in raw_words]
     room = rooms.get(current_room, {})
-    all_keys = set(ITEM_DEFS.keys()) | set(weapons.keys()) | set(room.get('items', [])) | set(player_inventory)
+    room_items = room.get('items', [])
+    all_keys = set(ITEM_DEFS.keys()) | set(weapons.keys()) | set(room_items) | set(player_inventory)
     resolved_words = []
-    for w in words:
+    for wi, w in enumerate(words):
+        rw = raw_words[wi]
+        # Vollständige interne ID (auch wenn länger als 9 Zeichen)
+        if rw in all_keys:
+            resolved_words.append(rw)
+            continue
         matches = [k for k in all_keys if k[:9] == w and k != w]
         if len(matches) == 1:
             resolved_words.append(matches[0])
+        elif len(matches) > 1:
+            in_room = [k for k in matches if k in room_items]
+            if len(in_room) == 1:
+                resolved_words.append(in_room[0])
+                continue
+            in_inv = [k for k in matches if k in player_inventory]
+            if len(in_inv) == 1:
+                resolved_words.append(in_inv[0])
+                continue
+            resolved_words.append(w)
         else:
             resolved_words.append(w)
     words = resolved_words
