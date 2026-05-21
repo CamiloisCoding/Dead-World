@@ -1446,17 +1446,17 @@ rooms = {
     },
     'skyscraper_straße': {#Stadt
         'name': 'Skyscraper Straße',
-        'description': 'Eine gerade Straße entlang des Hochhauses. Nach WESTEN liegt die Skyscraper Weggabelung. Im OSTEN die südöstliche Skyscraper Weggabelung.',
-        'exits': {'westen': 'skyscraper_weggabelung', 'osten': 'süd_östliche_skyscraper_weggabelung'},
+        'description': 'Eine gerade Straße entlang des Hochhauses. Nach WESTEN liegt die Skyscraper Weggabelung. Im OSTEN die südöstliche Skyscraper Weggabelung. Im NORDWESTEN klafft eine eingestürzte Wand – dahinter liegt der Eingang zu Skyscraper 1.',
+        'exits': {'westen': 'skyscraper_weggabelung', 'nordwesten': 'skyscraper_1'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
         'zombie_spawn': False
     },
-    'süd_östliche_skyscraper_weggabelung': {#Stadt
-        'name': 'Südöstliche Skyscraper Weggabelung',
-        'description': 'Eine Weggabelung zwischen Hochhäusern. Nach WESTEN führt die Skyscraper Straße.',
-        'exits': {'westen': 'skyscraper_straße'},
+    'skyscraper_1': {#Stadt
+        'name': 'Skyscraper 1 – Eingestürzte Wand',
+        'description': 'Durch eine große Bresche in der Außenmauer bist du ins Erdgeschoss des ersten Hochhauses eingedrungen. Betonbrocken und Staub bedecken den Boden. Nach SÜDOSTEN führt der Weg zurück auf die Skyscraper Straße.',
+        'exits': {'südosten': 'skyscraper_straße'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
