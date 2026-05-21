@@ -95,9 +95,7 @@ def handle_help(cmd):
 # MOVEMENT
 # ========================
 # Direction alias map
-# Hinweis: Der Dispatcher kuerzt jedes Wort auf 9 Zeichen.
-# Daher muessen wir laengere Schreibweisen auch in ihrer 9-Zeichen-Form
-# eintragen, sonst wird die Bewegung nicht erkannt.
+# Bewegungs-Aliase (vollständige Wörter; der Dispatcher kürzt keine Tokens mehr).
 _DIRECTION_MAP = {
     'n': 'norden', 'norden': 'norden', 'nord': 'norden',
     'o': 'osten', 'osten': 'osten', 'ost': 'osten',
@@ -105,10 +103,7 @@ _DIRECTION_MAP = {
     'w': 'westen', 'westen': 'westen', 'west': 'westen',
     'so': 'südosten', 'südosten': 'südosten', 'suedosten': 'südosten',
     'süd-osten': 'südosten', 'sued-osten': 'südosten',
-    'sued-oste': 'südosten',  # truncation von 'sued-osten' (10) -> 9
     'nw': 'nordwesten', 'nordwesten': 'nordwesten', 'nord-westen': 'nordwesten',
-    'nordweste': 'nordwesten',  # truncation von 'nordwesten' (10) -> 9
-    'nord-west': 'nordwesten',  # truncation von 'nord-westen' (11) -> 9
     'h': 'hoch', 'hoch': 'hoch', 'up': 'hoch',
     'r': 'runter', 'runter': 'runter', 'down': 'runter',
 }
@@ -487,7 +482,7 @@ def handle_system_commands(cmd):
         _game.start_game()
         return True
 
-    if cmd in ('verbose', 'ausführl', 'ausführli'):
+    if cmd in ('verbose', 'ausführl', 'ausführli', 'ausführlich'):
         _game.view_mode = 'verbose'
         _h("Modus: VERBOSE – Volle Beschreibungen.")
         _h("")
@@ -499,7 +494,7 @@ def handle_system_commands(cmd):
         _h("")
         return True
 
-    if cmd in ('superbrie', 'superkur', 'superkurz'):
+    if cmd in ('superbrie', 'superkur', 'superkurz', 'superbrief'):
         _game.view_mode = 'superbrief'
         _h("Modus: SUPERBRIEF – Nur Raumnamen.")
         _h("")
@@ -596,12 +591,7 @@ def _has_all(text, *needles):
 def handle_interaction_commands(cmd):
     """Handles: schieben, aufbrechen, Türen, Schubladen, Safe, Numpad.
 
-    Wichtig: Der Dispatcher in process_command() macht bereits:
-        cmd = command.lower().strip()
-        words = [w[:9] for w in cmd.split()]
-    Deshalb dürfen wir hier nur LOWERCASE-Strings vergleichen und müssen
-    mit Substrings arbeiten (z.B. 'bücherreg' statt 'bücherregal'),
-    weil lange Wörter auf 9 Zeichen gekürzt werden.
+    Eingaben sind bereits lowercased; lange Wörter wie „bücherregal“ bleiben erhalten.
     """
 
     # ------------------------------------------------------------
@@ -689,7 +679,6 @@ def handle_interaction_commands(cmd):
 
     # ------------------------------------------------------------
     # HAUS1: Tür mit Axt aufbrechen
-    # 'aufbrechen' (10) -> getrunkat. 'aufbreche' (9). Beide Varianten erlaubt.
     # ------------------------------------------------------------
     if (
         ('tür' in cmd and _has_any(cmd, 'aufbreche', 'aufschlag', 'aufschalg', 'zerhacke'))
@@ -718,7 +707,6 @@ def handle_interaction_commands(cmd):
 
     # ------------------------------------------------------------
     # HAUS1: Dachbodentür mit Gehstock herunterziehen
-    # 'dachbodentür' (12) -> trunkat. 'dachboden' (9). Substring 'dachboden' deckt beides ab.
     # ------------------------------------------------------------
     if 'dachboden' in cmd and _has_any(cmd, 'ziehe', 'runter', 'öffne', 'oeffne', 'gehstock'):
         if _game.current_room == 'haus1_dachbodentür':
@@ -787,7 +775,6 @@ def handle_interaction_commands(cmd):
 
     # ------------------------------------------------------------
     # HAUS1: Safe durchsuchen
-    # 'durchsuchen' (11) -> trunkat. 'durchsuch' (9).
     # ------------------------------------------------------------
     if 'safe' in cmd and 'durchsuch' in cmd:
         if _game.current_room != 'haus1_dachboden':
@@ -844,14 +831,14 @@ def handle_container_commands(cmd):
     """Handles: öffne, schließe, lege...in, nimm...aus, schaue in"""
 
     if cmd.startswith('öffne ') or cmd.startswith('oeffne '):
-        target = cmd.split(' ', 1)[1].strip()[:9]
+        target = cmd.split(' ', 1)[1].strip()
         _game.handle_container_open(target)
         return True
 
     if cmd.startswith('schließ') or cmd.startswith('schliess'):
         parts = cmd.split(' ', 1)
         if len(parts) > 1:
-            target = parts[1].strip()[:9]
+            target = parts[1].strip()
             _game.handle_container_close(target)
         else:
             _h("Was willst du schließen?")
@@ -984,7 +971,7 @@ def handle_unknown_command(cmd, words):
             return
 
     # 5) Unbekanntes Verb
-    if verb and verb[:9] not in KNOWN_VERBS:
+    if verb and verb not in KNOWN_VERBS:
         resp = random.choice(UNKNOWN_VERB_RESPONSES).format(verb=verb)
         _h(resp)
         _h("")

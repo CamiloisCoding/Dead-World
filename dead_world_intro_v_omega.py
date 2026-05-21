@@ -3008,22 +3008,27 @@ def process_command(command):
     
     cmd = command.lower().strip()
 
-    # === 9-Letter Truncation ===
-    # Lange IDs (z.B. keycard_armband_lvl1/2/3) teilen die ersten 9 Zeichen („keycard_a“).
-    # Ohne zusätzliche Logik bleibt der Token dann kein gültiger Schlüssel — „nimm“ schlägt fehl.
-    raw_words = cmd.split()
-    words = [w[:9] for w in raw_words]
+    # === Objekt-/Schlüssel-Auflösung (ohne globales Token-Kürzen) ===
+    # Früher wurden alle Wörter auf 9 Zeichen gekürzt — das zerstörte lange Item-IDs und deutsche Wörter.
+    # Verben/Richtungen bleiben im ersten Token unverändert (z.B. „n“, „gehe“, „schieße“).
+    # Ab dem zweiten Token: exakte Schlüssel oder eindeutige Präfix-Treffer auf Spiel-Datenkeys.
+    OBJECT_PREFIX_MIN_LEN = 3
+    words_raw = cmd.split()
     room = rooms.get(current_room, {})
     room_items = room.get('items', [])
     all_keys = set(ITEM_DEFS.keys()) | set(weapons.keys()) | set(room_items) | set(player_inventory)
     resolved_words = []
-    for wi, w in enumerate(words):
-        rw = raw_words[wi]
-        # Vollständige interne ID (auch wenn länger als 9 Zeichen)
+    for wi, rw in enumerate(words_raw):
+        if wi == 0:
+            resolved_words.append(rw)
+            continue
         if rw in all_keys:
             resolved_words.append(rw)
             continue
-        matches = [k for k in all_keys if k[:9] == w and k != w]
+        if len(rw) < OBJECT_PREFIX_MIN_LEN:
+            resolved_words.append(rw)
+            continue
+        matches = [k for k in all_keys if len(k) > len(rw) and k.startswith(rw)]
         if len(matches) == 1:
             resolved_words.append(matches[0])
         elif len(matches) > 1:
@@ -3035,9 +3040,9 @@ def process_command(command):
             if len(in_inv) == 1:
                 resolved_words.append(in_inv[0])
                 continue
-            resolved_words.append(w)
+            resolved_words.append(rw)
         else:
-            resolved_words.append(w)
+            resolved_words.append(rw)
     words = resolved_words
     cmd = ' '.join(words)
 
