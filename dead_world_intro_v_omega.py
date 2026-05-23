@@ -1447,7 +1447,25 @@ rooms = {
     'skyscraper_straße': {#Stadt
         'name': 'Skyscraper Straße',
         'description': 'Eine gerade Straße entlang des Hochhauses. Nach WESTEN liegt die Skyscraper Weggabelung. Im OSTEN die südöstliche Skyscraper Weggabelung. Im NORDWESTEN klafft eine eingestürzte Wand – dahinter liegt der Eingang zu Skyscraper 1.',
-        'exits': {'westen': 'skyscraper_weggabelung', 'nordwesten': 'skyscraper_1'},
+        'exits': {'westen': 'skyscraper_weggabelung', 'nordwesten': 'skyscraper_1', 'süden': 'tower_straße_west'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'tower_straße_west': {#Stadt
+        'name': 'Tower Straße West',
+        'description': 'Westseite des Tower-Bereichs. Im NORDEN liegt die Skyscraper Straße. Nach SÜDEN führt der Weg zur Tower Straße SW.',
+        'exits': {'norden': 'skyscraper_straße', 'süden': 'tower_straße_sw'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'tower_straße_sw': {#Stadt
+        'name': 'Tower Straße SW',
+        'description': 'Südwestlicher Abschnitt der Tower-Straße. Im NORDEN ist die Tower Straße West. Nach WESTEN geht es zur Feuerwehr Straße SE.',
+        'exits': {'norden': 'tower_straße_west', 'westen': 'feuerwehr_straße_se'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1474,7 +1492,16 @@ rooms = {
     'feuerwehrstraße': {#Stadt
         'name': 'Feuerwehrstraße',
         'description': 'An der Seite steht eine verlassene Feuerwache. Im OSTEN die Weggabelung am zweiten Hochhaus. Nach WESTEN die Ostseite des großen Baumarkt-Geländes.',
-        'exits': {'osten': 'skyscraper2_weggabelung_west', 'westen': 'home_depot_east'},
+        'exits': {'osten': 'skyscraper2_weggabelung_west', 'westen': 'home_depot_east', 'süden': 'feuerwehr_straße_se'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'feuerwehr_straße_se': {#Stadt
+        'name': 'Feuerwehr Straße SE',
+        'description': 'Südöstlicher Straßenabschnitt bei der Feuerwache. Im NORDEN liegt die Feuerwehrstraße. Nach OSTEN führt die Tower Straße SW.',
+        'exits': {'norden': 'feuerwehrstraße', 'osten': 'tower_straße_sw'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1702,9 +1729,11 @@ BUILDING_HIERARCHY = {
                        'nord_östliche_weggabelung', 'östliche_straße',
                        'norden_straße', 'park_straße', 'skyscraper_weggabelung',
                        'skyscraper_straße',
+                       'tower_straße_west', 'tower_straße_sw',
                        'süd_östliche_skyscraper_weggabelung',
                        'skyscraper2_weggabelung_west',
                        'feuerwehrstraße',
+                       'feuerwehr_straße_se',
                        'home_depot_east', 'home_depot_se', 'home_depot_south',
                        'home_depot_sw', 'home_depot_west', 'home_depot_nw',
                        'home_depot_north', 'home_depot_ne',
