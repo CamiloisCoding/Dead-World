@@ -1483,7 +1483,7 @@ rooms = {
     'skyscraper2_weggabelung_west': {#Stadt
         'name': 'Skyscraper 2 – westliche Weggabelung',
         'description': 'Vor einem zweiten Hochhaus teilt sich der Weg. Im NORDEN die Skyscraper Weggabelung. Nach WESTEN die Feuerwehrstraße.',
-        'exits': {'norden': 'skyscraper_weggabelung', 'westen': 'feuerwehrstraße'},
+        'exits': {'norden': 'skyscraper_weggabelung', 'westen': 'feuerwehrstraße', 'süden': 'feuerwehr_straße_se'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1501,7 +1501,34 @@ rooms = {
     'feuerwehr_straße_se': {#Stadt
         'name': 'Feuerwehr Straße SE',
         'description': 'Südöstlicher Straßenabschnitt bei der Feuerwache. Im NORDEN liegt die Feuerwehrstraße. Nach OSTEN führt die Tower Straße SW.',
-        'exits': {'norden': 'feuerwehrstraße', 'osten': 'tower_straße_sw'},
+        'exits': {'norden': 'skyscraper2_weggabelung_west', 'osten': 'tower_straße_sw', 'westen': 'casino_east'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'casino_east': {#Stadt
+        'name': 'Casino East (Storage Units North)',
+        'description': 'Der östliche Rand des Casino-Blocks bei den nördlichen Lagereinheiten. Im OSTEN liegt die Feuerwehr Straße SE. Nach SÜDEN geht es zur Casino SE.',
+        'exits': {'osten': 'feuerwehr_straße_se', 'norden': 'home_depot_se', 'süden': 'casino_se'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'casino_se': {#Stadt
+        'name': 'Casino SE',
+        'description': 'Südöstliche Ecke am Casino. Im NORDEN liegt Casino East. Nach WESTEN führt die Straße zur Casino SW.',
+        'exits': {'norden': 'casino_east', 'westen': 'casino_sw'},
+        'items': [],
+        'in_development': True,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'casino_sw': {#Stadt
+        'name': 'Casino SW',
+        'description': 'Südwestlicher Straßenabschnitt am Casino. Im OSTEN liegt Casino SE. Nach NORDEN geht es zur Home Depot SW.',
+        'exits': {'osten': 'casino_se', 'norden': 'home_depot_sw'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1537,7 +1564,7 @@ rooms = {
     'home_depot_sw': {#Stadt
         'name': 'Home Depot – Südwesten',
         'description': 'Südwestecke des Geländes. Im OSTEN die Südkante. Nach NORDEN die Westseite.',
-        'exits': {'osten': 'home_depot_south', 'norden': 'home_depot_west'},
+        'exits': {'osten': 'home_depot_south', 'norden': 'home_depot_west', 'süden': 'casino_sw'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1734,6 +1761,7 @@ BUILDING_HIERARCHY = {
                        'skyscraper2_weggabelung_west',
                        'feuerwehrstraße',
                        'feuerwehr_straße_se',
+                       'casino_east', 'casino_se', 'casino_sw',
                        'home_depot_east', 'home_depot_se', 'home_depot_south',
                        'home_depot_sw', 'home_depot_west', 'home_depot_nw',
                        'home_depot_north', 'home_depot_ne',
