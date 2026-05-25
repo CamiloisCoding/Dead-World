@@ -209,17 +209,14 @@ _vignette_cache_key = (0, 0, 0)  # (w, h, intensity)
 _cracks_cache = None
 _cracks_cache_key = (0, 0, 0)  # (w, h, alpha)
 
-# Pre-allokierte Partikel-Surfaces (vermeidet 50 Allokationen pro Frame)
-_particle_surfaces = {}  # Cache: (size, color, alpha) -> Surface
-
-# Cached fog circle surface
-_fog_circle_cache = {}  # Cache: (radius, alpha) -> Surface
-_fog_surface = None     # Reusable fog overlay surface
-_fog_surface_size = (0, 0)
-
 # Cached gradient separator surfaces
 _gradient_sep_cache = None
 _gradient_sep_cache_key = (0, 0, 0)  # (w, padding, color_key)
+
+# Menü-Hintergrundbild Cache
+_menu_bg_cache = None
+_menu_bg_cache_size = (0, 0)
+
 
 # Kampfsystem (ZOMBIE_RESPAWN_COOLDOWN in config.py)
 zombie_kill_times = {}  # room_key -> time.time() wann Zombie zuletzt getötet wurde
@@ -1536,8 +1533,8 @@ rooms = {
     },
     'home_depot_east': {#Stadt
         'name': 'Home Depot – Osten',
-        'description': 'Der östliche Rand des abgesperrten Parkplatzes. Im OSTEN die Feuerwehrstraße. Nach SÜDEN die Südostecke.',
-        'exits': {'osten': 'feuerwehrstraße', 'süden': 'home_depot_se'},
+        'description': 'Der östliche Rand des abgesperrten Parkplatzes. Im OSTEN die Feuerwehrstraße. Nach NORDEN die Nordostecke. Nach SÜDEN die Südostecke.',
+        'exits': {'osten': 'feuerwehrstraße', 'norden': 'home_depot_ne', 'süden': 'home_depot_se'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1599,8 +1596,8 @@ rooms = {
     },
     'home_depot_ne': {#Stadt
         'name': 'Home Depot – Nordosten',
-        'description': 'Nordostecke am Zaun. Im WESTEN die Nordseite. Im OSTEN zur Straße vor der Pizzeria.',
-        'exits': {'westen': 'home_depot_north', 'osten': 'straße_pizzeria'},
+        'description': 'Nordostecke am Zaun. Im WESTEN die Nordseite. Im SÜDEN der östliche Rand. Im OSTEN zur Straße vor der Pizzeria.',
+        'exits': {'westen': 'home_depot_north', 'süden': 'home_depot_east', 'osten': 'straße_pizzeria'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -2059,65 +2056,16 @@ def draw_vignette(surface, intensity=180):
     
     surface.blit(_vignette_cache, (0, 0))
 
-def draw_cracked_text(surface, text, pos, color, time, font=None):
-    """Zeichnet Text mit weichem Hintergrund-Glow und Schatten"""
-    if font is None:
-        font = get_scaled_font(120)
-    
-    # Subtile Erschütterung
-    shake_x = math.sin(time * 0.003) * scale(2)
-    shake_y = math.cos(time * 0.004) * scale(1)
-    
-    # Schatten (nur 1 Offset, sauber) — convert_alpha() für echte Transparenz
-    shadow = font.render(text, True, DEEP_RED).convert_alpha()
-    shadow_off = scale(3)
-    shadow_rect = shadow.get_rect(center=(pos[0] + shadow_off + shake_x, pos[1] + shadow_off + shake_y))
-    surface.blit(shadow, shadow_rect)
-    
-    # Haupt-Text — convert_alpha() für echte Transparenz
-    text_surface = font.render(text, True, color).convert_alpha()
-    text_rect = text_surface.get_rect(center=pos)
-    final_rect = text_rect.move(shake_x, shake_y)
-    surface.blit(text_surface, final_rect)
 
-def draw_particles(surface, time, alpha):
-    """Zeichnet Asche-Partikel und glühende Ember-Funken (optimiert)"""
-    global _particle_surfaces
-    w, h = surface.get_width(), surface.get_height()
-    
-    # Asche-Partikel (subtil, grau, langsam)
-    for i in range(35):
-        seed = i * 137
-        drift = math.sin(time * 0.001 + seed) * 30
-        x = (seed + int(time * 0.4) + int(drift)) % w
-        y = (i * 79 + int(time * 0.6)) % h
-        size = (i % 3) + 1
-        a = min(255, int(alpha * 0.6))
-        
-        cache_key = (size, LIGHT_GRAY, a)
-        if cache_key not in _particle_surfaces:
-            ps = pygame.Surface((size, size), pygame.SRCALPHA)
-            ps.fill((*LIGHT_GRAY, a))
-            _particle_surfaces[cache_key] = ps
-        surface.blit(_particle_surfaces[cache_key], (x, y))
-    
-    # Ember-Funken (orange, klein, steigen auf)
-    for i in range(15):
-        seed = i * 211 + 500
-        drift = math.sin(time * 0.002 + seed * 0.7) * 20
-        x = (seed + int(drift)) % w
-        y = h - ((i * 97 + int(time * 1.2)) % h)
-        life = (time * 0.003 + i) % 1.0
-        size = max(1, int(3 * (1.0 - life)))
-        a = min(255, int(alpha * (1.0 - life)))
-        
-        color = EMBER_ORANGE if i % 3 != 0 else EMBER_DIM
-        cache_key = (size, color, a)
-        if cache_key not in _particle_surfaces:
-            ps = pygame.Surface((size, size), pygame.SRCALPHA)
-            ps.fill((*color, a))
-            _particle_surfaces[cache_key] = ps
-        surface.blit(_particle_surfaces[cache_key], (int(x), int(y)))
+def _render_text(font, text, color):
+    """Rendert Text auf schwarzem Hintergrund mit Colorkey.
+    Da der Screen-Hintergrund schwarz ist, werden die schwarzen Pixel
+    durch den Colorkey transparent – kein weißes Rechteck möglich."""
+    surf = font.render(text, True, color, (0, 0, 0))
+    surf.set_colorkey((0, 0, 0))
+    return surf
+
+
 
 def draw_cracks(surface, alpha):
     """Zeichnet rot-getönte Risse mit organischeren Mustern (gecacht)"""
@@ -2153,69 +2101,74 @@ def draw_cracks(surface, alpha):
     
     surface.blit(_cracks_cache, (0, 0))
 
-def draw_fog(surface, time, alpha):
-    """Zeichnet subtilen Nebel / Rauch Overlay (optimiert)"""
-    global _fog_circle_cache, _fog_surface, _fog_surface_size
+def _draw_menu_bg(surface):
+    """Lädt und zeichnet das skalierte Hintergrundbild + gleichmäßiges Dunkel-Overlay."""
+    global _menu_bg_cache, _menu_bg_cache_size
     w, h = surface.get_width(), surface.get_height()
-    
-    # Reuse fog overlay surface statt jedes Frame neu zu erstellen
-    if _fog_surface is None or _fog_surface_size != (w, h):
-        _fog_surface = pygame.Surface((w, h), pygame.SRCALPHA)
-        _fog_surface_size = (w, h)
-    _fog_surface.fill((0, 0, 0, 0))  # Clear statt neu erstellen
-    
-    for i in range(6):
-        cx = int((i * w / 5 + math.sin(time * 0.0005 + i * 2) * 100) % w)
-        cy = int(h * 0.6 + math.sin(time * 0.0003 + i) * h * 0.2)
-        radius = scale(120 + i * 30)
-        fog_a = min(255, int(alpha * 0.15))
-        
-        cache_key = (radius, fog_a)
-        if cache_key not in _fog_circle_cache:
-            fog_circle = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-            pygame.draw.circle(fog_circle, (*FOG_COLOR, fog_a), (radius, radius), radius)
-            _fog_circle_cache[cache_key] = fog_circle
-        _fog_surface.blit(_fog_circle_cache[cache_key], (cx - radius, cy - radius))
-    
-    surface.blit(_fog_surface, (0, 0))
+    if _menu_bg_cache is None or _menu_bg_cache_size != (w, h):
+        try:
+            import os as _os
+            bg_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "menu_bg.jpg")
+            raw = pygame.image.load(bg_path).convert()
+            _menu_bg_cache = pygame.transform.smoothscale(raw, (w, h))
+        except Exception:
+            _menu_bg_cache = pygame.Surface((w, h))
+            _menu_bg_cache.fill((0, 0, 0))
+        _menu_bg_cache_size = (w, h)
+    surface.blit(_menu_bg_cache, (0, 0))
+    # Gleichmäßiges Dunkel-Overlay über das GESAMTE Bild — kein Rechteck möglich
+    dark = pygame.Surface((w, h))
+    dark.fill((0, 0, 0))
+    dark.set_alpha(175)
+    surface.blit(dark, (0, 0))
+
 
 def draw_intro(current_time):
-    """Zeichnet das atmosphärische Intro"""
-    FADE_IN_DURATION = 2500
-    HOLD_DURATION = 3500
-    FADE_OUT_DURATION = 2000
-    
-    if current_time < FADE_IN_DURATION:
-        alpha = int((current_time / FADE_IN_DURATION) * 255)
-    elif current_time < FADE_IN_DURATION + HOLD_DURATION:
+    FADE_IN  = 2500
+    HOLD     = 3500
+    FADE_OUT = 2000
+
+    if current_time < FADE_IN:
+        alpha = int(current_time / FADE_IN * 255)
+    elif current_time < FADE_IN + HOLD:
         alpha = 255
-    elif current_time < FADE_IN_DURATION + HOLD_DURATION + FADE_OUT_DURATION:
-        fade_progress = (current_time - FADE_IN_DURATION - HOLD_DURATION) / FADE_OUT_DURATION
-        alpha = int((1 - fade_progress) * 255)
+    elif current_time < FADE_IN + HOLD + FADE_OUT:
+        alpha = int((1 - (current_time - FADE_IN - HOLD) / FADE_OUT) * 255)
     else:
         return True
-    
-    screen.fill(BLACK)
-    
-    # Vignette für Tiefe
-    draw_vignette(screen, int(200 * (alpha / 255)))
-    
-    # Titel mit Glow - direkt auf Screen zeichnen statt extra Surface
-    intro_font = get_scaled_font(120)
-    draw_cracked_text(screen, "DEAD WORLD", 
-                     (screen.get_width() // 2, screen.get_height() // 2 - scale(20)), 
-                     (BLOOD_RED[0], BLOOD_RED[1], BLOOD_RED[2]), 
-                     current_time,
-                     intro_font)
-    
-    # "Press any key" hint mit Puls-Fade
-    if current_time > FADE_IN_DURATION:
-        hint_pulse = int(120 + 80 * math.sin(current_time * 0.003))
-        hint_font = get_scaled_font(22)
-        hint_surf = hint_font.render("LEERTASTE ZUM FORTFAHREN", True, (hint_pulse, hint_pulse // 3, hint_pulse // 4))
-        hint_rect = hint_surf.get_rect(center=(screen.get_width() // 2, screen.get_height() // 2 + scale(80)))
-        screen.blit(hint_surf, hint_rect)
-    
+
+    w, h = screen.get_width(), screen.get_height()
+    cx, cy = w // 2, h // 2
+
+    _draw_menu_bg(screen)
+
+    # Titel: Schatten + Haupttext
+    font_title = get_scaled_font(120)
+    off = scale(3)
+    shadow = _render_text(font_title, "DEAD WORLD", DEEP_RED)
+    shadow.set_alpha(alpha)
+    screen.blit(shadow, shadow.get_rect(center=(cx + off, cy - scale(20) + off)))
+
+    title = _render_text(font_title, "DEAD WORLD", BLOOD_RED)
+    title.set_alpha(alpha)
+    screen.blit(title, title.get_rect(center=(cx, cy - scale(20))))
+
+    # Hint (erscheint nach Einblenden)
+    if current_time > FADE_IN:
+        pulse = int(120 + 80 * math.sin(current_time * 0.003))
+        font_hint = get_scaled_font(22)
+        hint = _render_text(font_hint, "LEERTASTE ZUM FORTFAHREN",
+                            (pulse, pulse // 3, pulse // 4))
+        hint.set_alpha(alpha)
+        screen.blit(hint, hint.get_rect(center=(cx, cy + scale(80))))
+
+    # Schwarz-Overlay für Fade-In / Fade-Out
+    if alpha < 255:
+        fade = pygame.Surface((w, h))
+        fade.fill((0, 0, 0))
+        fade.set_alpha(255 - alpha)
+        screen.blit(fade, (0, 0))
+
     return False
 
 class MenuButton:
@@ -2241,12 +2194,12 @@ class MenuButton:
             shadow_color = DEEP_RED
         
         # Schatten
-        shadow = button_font.render(self.text, True, shadow_color)
+        shadow = _render_text(button_font, self.text, shadow_color)
         shadow_rect = shadow.get_rect(center=(self.pos[0] + scale(2), self.pos[1] + scale(2)))
         surface.blit(shadow, shadow_rect)
-        
+
         # Haupt-Text
-        text_surf = button_font.render(self.text, True, color)
+        text_surf = _render_text(button_font, self.text, color)
         self.rect = text_surf.get_rect(center=self.pos)
         surface.blit(text_surf, self.rect)
         
@@ -3963,9 +3916,7 @@ def draw_game(current_time):
 
 def draw_options(current_time):
     """Zeichnet das atmosphärische Options-Menü"""
-    screen.fill(BLACK)
-    draw_cracks(screen, 35)
-    draw_vignette(screen, 140)
+    screen.fill((0, 0, 0))
     
     # Skalierte Fonts
     font_title = get_scaled_font(80)
@@ -4073,72 +4024,60 @@ def draw_options(current_time):
         screen.blit(hint_surf, hint_rect)
         hint_y += scale(20)
 
-def draw_menu(current_time):
-    """Zeichnet das atmosphärische Hauptmenü"""
-    global menu_selected_index
-    
-    screen.fill(BLACK)
-    
-    # Atmosphärische Hintergrund-Schichten
-    draw_vignette(screen, 160)
-    
-    # Skalierte Schriften
-    font_menu_title = get_scaled_font(80)
-    font_menu_hint = get_scaled_font(22)
-    
-    # Titel mit Glow - direkt auf Screen zeichnen statt extra full-screen Surface
-    draw_cracked_text(screen, "DEAD WORLD", 
-                     (screen.get_width() // 2, scale_y(130)), 
-                     (BLOOD_RED[0], BLOOD_RED[1], BLOOD_RED[2]), 
-                     current_time,
-                     font_menu_title)
-    
-    # Dekorative Trennlinie unter dem Titel (gecacht)
-    center_x = screen.get_width() // 2
-    line_half = scale(120)
-    line_y = scale_y(200)
-    _draw_gradient_line(screen, center_x, line_y, line_half, DARK_RED)
-    
-    # Aktualisiere Button-Positionen basierend auf aktueller Auflösung
-    menu_buttons[0].pos = (center_x, scale_y(280))
-    menu_buttons[1].pos = (center_x, scale_y(370))
-    menu_buttons[2].pos = (center_x, scale_y(460))
-    menu_buttons[3].pos = (center_x, scale_y(550))
-    
-    # "LADEN" Button deaktivieren wenn kein Spielstand vorhanden
-    save_exists = os.path.exists(SAVE_FILE)
-    menu_buttons[1].disabled = not save_exists
-    
-    mouse_pos = pygame.mouse.get_pos()
-    
-    # Prüfe ob Maus über einem Button ist
-    mouse_over_any = False
-    for i, button in enumerate(menu_buttons):
-        if button.check_hover(mouse_pos):
-            menu_selected_index = i
-            mouse_over_any = True
-    
-    # Wenn keine Maus über Buttons, nutze keyboard selection
-    if not mouse_over_any:
-        for i, button in enumerate(menu_buttons):
-            button.hovered = (i == menu_selected_index)
-    
-    for button in menu_buttons:
-        button.draw(screen, current_time)
-    
-    # Hinweis für Tastatursteuerung (subtiler)
-    hint_pulse = int(60 + 30 * math.sin(current_time * 0.002))
-    hint_surf = font_menu_hint.render("↑↓: Navigieren  |  ENTER: Auswählen", True, (hint_pulse, hint_pulse, hint_pulse))
-    hint_rect = hint_surf.get_rect(center=(screen.get_width() // 2, screen.get_height() - scale(30)))
-    screen.blit(hint_surf, hint_rect)
-
-# Menu-Buttons (initiale Positionen, werden in draw_menu dynamisch aktualisiert)
 menu_buttons = [
     MenuButton("NEUES SPIEL", (WIDTH // 2, 300), start_game),
-    MenuButton("LADEN", (WIDTH // 2, 390), load_game_from_menu),
-    MenuButton("OPTIONEN", (WIDTH // 2, 480), show_options),
-    MenuButton("BEENDEN", (WIDTH // 2, 570), quit_game)
+    MenuButton("LADEN",       (WIDTH // 2, 390), load_game_from_menu),
+    MenuButton("OPTIONEN",    (WIDTH // 2, 480), show_options),
+    MenuButton("BEENDEN",     (WIDTH // 2, 570), quit_game),
 ]
+
+
+def draw_menu(current_time):
+    global menu_selected_index
+
+    w, h = screen.get_width(), screen.get_height()
+    cx = w // 2
+
+    _draw_menu_bg(screen)
+
+    # Titel: Schatten + Haupttext
+    font_title = get_scaled_font(80)
+    off = scale(3)
+    shadow = _render_text(font_title, "DEAD WORLD", DEEP_RED)
+    screen.blit(shadow, shadow.get_rect(center=(cx + off, scale_y(130) + off)))
+    title = _render_text(font_title, "DEAD WORLD", BLOOD_RED)
+    screen.blit(title, title.get_rect(center=(cx, scale_y(130))))
+
+    # Trennlinie
+    _draw_gradient_line(screen, cx, scale_y(200), scale(120), DARK_RED)
+
+    # Buttons positionieren
+    menu_buttons[0].pos = (cx, scale_y(280))
+    menu_buttons[1].pos = (cx, scale_y(370))
+    menu_buttons[2].pos = (cx, scale_y(460))
+    menu_buttons[3].pos = (cx, scale_y(550))
+    menu_buttons[1].disabled = not os.path.exists(SAVE_FILE)
+
+    # Hover (Maus + Tastatur)
+    mouse_pos = pygame.mouse.get_pos()
+    mouse_over = False
+    for i, btn in enumerate(menu_buttons):
+        if btn.check_hover(mouse_pos):
+            menu_selected_index = i
+            mouse_over = True
+    if not mouse_over:
+        for i, btn in enumerate(menu_buttons):
+            btn.hovered = (i == menu_selected_index)
+
+    for btn in menu_buttons:
+        btn.draw(screen, current_time)
+
+    # Tastaturhinweis
+    pulse = int(60 + 30 * math.sin(current_time * 0.002))
+    font_hint = get_scaled_font(22)
+    hint = _render_text(font_hint, "↑↓: Navigieren  |  ENTER: Auswählen",
+                        (pulse, pulse, pulse))
+    screen.blit(hint, hint.get_rect(center=(cx, h - scale(30))))
 
 options_buttons = [
     MenuButton("ZURÜCK", (WIDTH // 2, 550), back_to_menu)
