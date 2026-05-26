@@ -192,8 +192,9 @@ scroll_offset = 0
 max_scroll = 0
 
 # Typewriter-Effekt System
-typewriter_queue = []          # Warteschlange für Zeilen die noch getippt werden
+typewriter_queue = []          # Warteschlange für Zeilen (text, color) Tuples
 typewriter_current_line = ""   # Die aktuelle Zeile die getippt wird
+typewriter_current_color = None  # Farbe der aktuellen Zeile
 typewriter_reveal_index = 0    # Wie viele Zeichen sichtbar sind
 typewriter_last_time = 0       # Letzter Zeitpunkt an dem ein Zeichen hinzugefügt wurde
 # TYPEWRITER_SPEED in config.py
@@ -201,7 +202,7 @@ typewriter_active = False      # Ob gerade getippt wird
 
 # Cached CRT-Scanline Surface (nur einmal erstellen)
 _scanline_cache = None
-_scanline_cache_size = (0, 0)
+_scanline_cache_size = (-1, -1)
 
 # Cached static surfaces (vignette, cracks) - nur bei Resize neu erstellen
 _vignette_cache = None
@@ -2473,69 +2474,87 @@ def wrap_text(text, max_chars):
     
     return lines if lines else [""]
 
-def add_to_history(text):
-    """Fügt Text zur Spielhistorie hinzu mit automatischem Word-Wrapping und Typewriter-Effekt"""
+def add_to_history(text, color=None):
+    """Fügt Text zur Spielhistorie hinzu mit automatischem Word-Wrapping und Typewriter-Effekt.
+
+    color=None → automatische Erkennung anhand Textmuster:
+      '>>> ...' = COLOR_DANGER, '=== ...' = COLOR_SYSTEM,
+      '> ...'   = COLOR_PLAYER, sonst = COLOR_NORMAL
+    """
     global scroll_offset, typewriter_active, typewriter_queue
-    
+
+    if color is None:
+        stripped = text.strip() if text else ""
+        if stripped.startswith(">>>"):
+            color = COLOR_DANGER
+        elif stripped.startswith("===") or (stripped and all(c == '=' for c in stripped)):
+            color = COLOR_SYSTEM
+        elif stripped.startswith("> "):
+            color = COLOR_PLAYER
+        else:
+            color = COLOR_NORMAL
+
     max_chars = get_max_chars()
-    
-    # Leere Zeilen direkt in die Queue
+
     if not text or text.strip() == "":
-        typewriter_queue.append(text if text else "")
+        typewriter_queue.append(("", color))
     else:
-        # Text mit Word-Wrapping aufteilen
         wrapped_lines = wrap_text(text, max_chars)
         for line in wrapped_lines:
-            typewriter_queue.append(line)
-    
-    # Typewriter starten falls nicht aktiv
+            typewriter_queue.append((line, color))
+
     if not typewriter_active and typewriter_queue:
         _start_next_typewriter_line()
-    
-    # Automatisch nach unten scrollen bei neuen Nachrichten
+
     scroll_offset = 0
 
 def _start_next_typewriter_line():
     """Startet die nächste Zeile im Typewriter-Effekt"""
-    global typewriter_active, typewriter_current_line, typewriter_reveal_index, typewriter_last_time
-    
+    global typewriter_active, typewriter_current_line, typewriter_current_color, typewriter_reveal_index, typewriter_last_time
+
     if typewriter_queue:
-        typewriter_current_line = typewriter_queue.pop(0)
+        entry = typewriter_queue.pop(0)
+        if isinstance(entry, tuple):
+            typewriter_current_line, typewriter_current_color = entry
+        else:
+            typewriter_current_line = entry
+            typewriter_current_color = COLOR_NORMAL
         typewriter_reveal_index = 0
         typewriter_last_time = pygame.time.get_ticks()
         typewriter_active = True
     else:
         typewriter_active = False
         typewriter_current_line = ""
+        typewriter_current_color = None
         typewriter_reveal_index = 0
 
 def update_typewriter():
     """Aktualisiert den Typewriter-Effekt - aufgerufen jeden Frame"""
-    global typewriter_active, typewriter_reveal_index, typewriter_last_time, typewriter_current_line
-    
+    global typewriter_active, typewriter_reveal_index, typewriter_last_time, typewriter_current_line, typewriter_current_color
+
     if not typewriter_active:
         return
-    
+
     current_ms = pygame.time.get_ticks()
-    
+
     # Leere Zeilen sofort fertigstellen
     if not typewriter_current_line or not typewriter_current_line.strip():
-        game_history.append(typewriter_current_line)
+        game_history.append((typewriter_current_line, typewriter_current_color))
         _start_next_typewriter_line()
         return
-    
+
     # Berechne wie viele Zeichen seit dem letzten Update hinzugefügt werden sollen
     elapsed = current_ms - typewriter_last_time
     chars_to_add = elapsed // TYPEWRITER_SPEED
-    
+
     if chars_to_add > 0:
         typewriter_reveal_index += chars_to_add
         typewriter_last_time = current_ms
-        
+
         # Zeile fertig getippt?
         if typewriter_reveal_index >= len(typewriter_current_line):
             typewriter_reveal_index = len(typewriter_current_line)
-            game_history.append(typewriter_current_line)
+            game_history.append((typewriter_current_line, typewriter_current_color))
             _start_next_typewriter_line()
 
 def move_direction(direction):
@@ -3743,175 +3762,113 @@ def handle_fishing_qte(success):
     add_to_history("")
 
 def draw_game(current_time):
-    """Zeichnet das Text-Adventure Terminal mit CRT-Effekt"""
+    """Amber-Phosphor Terminal — sauber, lesbar, kein Artifact-Rechteck."""
     global max_scroll
-    
-    screen.fill(TERMINAL_BG)
-    
-    # Skalierte Werte für konsistentes Layout
-    padding = scale(10)
-    text_padding = scale(20)
-    header_y = scale(10)
-    separator_y = scale(40)
-    line_height = scale(25)
-    input_area_height = scale(60)
-    
-    # Skalierte Fonts
-    font_header = get_scaled_font(25)
-    font_text = get_scaled_font(30)
-    font_hint = get_scaled_font(25)
-    
-    # --- Minimalist Top Bar ---
-    w = screen.get_width()
-    bar_height = scale(35)
-    bar_pad = scale(10)
-    pygame.draw.rect(screen, (0, 0, 0), (0, 0, w, bar_height))
 
-    # Sans-serif font for the bar (cached to avoid per-frame allocation)
-    _bar_font_size = scale(18)
-    if not hasattr(draw_game, '_bar_font_cache') or draw_game._bar_font_cache[0] != _bar_font_size:
-        try:
-            draw_game._bar_font_cache = (_bar_font_size, pygame.font.SysFont("arial", _bar_font_size))
-        except Exception:
-            draw_game._bar_font_cache = (_bar_font_size, pygame.font.Font(None, _bar_font_size))
-    bar_font = draw_game._bar_font_cache[1]
-    bar_text_color = (255, 255, 255)
+    w, h = screen.get_width(), screen.get_height()
+    screen.fill(BLACK)
 
-    # Left: current location name
+    # ── Layout-Konstanten ──────────────────────────────────────────────────
+    text_padding    = scale(22)
+    line_height     = scale(26)
+    input_area_h    = scale(52)
+    BAR_H           = scale(30)
+
+    font_text  = get_scaled_font(27)
+    font_small = get_scaled_font(18)
+
+    # ── Top Bar ────────────────────────────────────────────────────────────
+    pygame.draw.rect(screen, TERMINAL_AMBER_BAR, (0, 0, w, BAR_H))
+    # Einzelne Akzentlinie unten
+    pygame.draw.line(screen, TERMINAL_AMBER_DIM, (0, BAR_H), (w, BAR_H), 1)
+
     location_name = rooms.get(current_room, {}).get('name', current_room)
-    loc_surf = bar_font.render(location_name, True, bar_text_color)
-    loc_y = (bar_height - loc_surf.get_height()) // 2
-    screen.blit(loc_surf, (bar_pad, loc_y))
+    loc_surf = font_small.render(location_name, True, TERMINAL_AMBER_BRIGHT)
+    screen.blit(loc_surf, (text_padding, (BAR_H - loc_surf.get_height()) // 2))
 
-    # Right: Score and Moves
-    status_text = f"Score: {game_score}  |  Moves: {game_moves}"
-    status_surf = bar_font.render(status_text, True, bar_text_color)
-    status_y = (bar_height - status_surf.get_height()) // 2
-    screen.blit(status_surf, (w - status_surf.get_width() - bar_pad, status_y))
-    
-    # QTE Timer anzeigen
+    status_text = f"SCORE {game_score}   MOVES {game_moves}"
+    stat_surf = font_small.render(status_text, True, TERMINAL_AMBER_DIM)
+    screen.blit(stat_surf, (w - stat_surf.get_width() - text_padding,
+                             (BAR_H - stat_surf.get_height()) // 2))
+
+    # ── QTE Timer ─────────────────────────────────────────────────────────
     qte_offset = 0
     if qte_active:
-        elapsed = time.time() - qte_start_time
+        elapsed   = time.time() - qte_start_time
         remaining = max(0, qte_duration - elapsed)
-        timer_text = f"ZEIT: {remaining:.1f}s | EINGABE: {qte_input}"
-        timer_surf = font_text.render(timer_text, True, (255, 0, 0))
-        screen.blit(timer_surf, (text_padding, scale(45)))
-        qte_offset = scale(30)
-    
-    # Game History (scrollendes Text-Fenster mit vollständigem Verlauf)
-    y_start = bar_height + scale(5) + qte_offset
-    y_offset = y_start
-    
-    # Berechne verfügbare Höhe für Text
-    available_height = screen.get_height() - y_start - input_area_height
-    visible_lines = max(1, available_height // line_height)
-    
-    # Berechne max scroll basierend auf Gesamtzahl der Zeilen
-    total_lines = len(game_history)
-    max_scroll = max(0, total_lines - visible_lines)
-    
-    # Bestimme welche Zeilen angezeigt werden (mit Scroll)
+        timer_text = f"! ZEIT: {remaining:.1f}s   EINGABE: {qte_input} !"
+        timer_surf = font_text.render(timer_text, True, COLOR_DANGER)
+        screen.blit(timer_surf, (text_padding, BAR_H + scale(6)))
+        qte_offset = scale(32)
+
+    # ── Text-Bereich ───────────────────────────────────────────────────────
+    y_start        = BAR_H + scale(8) + qte_offset
+    available_h    = h - y_start - input_area_h
+    visible_lines  = max(1, available_h // line_height)
+    total_lines    = len(game_history)
+    max_scroll     = max(0, total_lines - visible_lines)
+
     if prolog_shown and not qte_active:
-        # Invertiert: scroll_offset = 0 zeigt neueste, höherer offset = ältere Nachrichten
-        end_idx = total_lines - scroll_offset
+        end_idx   = total_lines - scroll_offset
         start_idx = max(0, end_idx - visible_lines)
     else:
-        # Standard: Zeige die letzten Zeilen
         start_idx = max(0, total_lines - visible_lines)
-        end_idx = total_lines
-    
-    # Zeichne sichtbare Zeilen (Word-Wrapping passiert bereits in add_to_history)
+        end_idx   = total_lines
+
+    y_offset = y_start
     for i in range(start_idx, end_idx):
         if i < len(game_history):
-            line = game_history[i]
-            # Leerzeilen nicht rendern, aber Abstand beibehalten
-            # font.render("") kann Artefakte/Vierecke erzeugen
+            entry = game_history[i]
+            line, line_color = entry if isinstance(entry, tuple) else (entry, COLOR_NORMAL)
+            if line_color is None:
+                line_color = COLOR_NORMAL
             if line.strip():
-                text_surf = font_text.render(line, True, TERMINAL_GREEN)
-                screen.blit(text_surf, (text_padding, y_offset))
-            # y_offset wird IMMER erhöht - auch für Leerzeilen (vertikaler Abstand)
-            y_offset += line_height
-    
-    # Typewriter: Zeige die aktuell getippte Zeile (teilweise sichtbar)
+                screen.blit(font_text.render(line, True, line_color), (text_padding, y_offset))
+        y_offset += line_height
+
+    # ── Typewriter ─────────────────────────────────────────────────────────
     if typewriter_active and typewriter_current_line and typewriter_current_line.strip():
         visible_text = typewriter_current_line[:typewriter_reveal_index]
+        tw_color = typewriter_current_color if typewriter_current_color else COLOR_NORMAL
         if visible_text.strip():
-            tw_surf = font_text.render(visible_text, True, TERMINAL_GREEN)
-            screen.blit(tw_surf, (text_padding, y_offset))
+            screen.blit(font_text.render(visible_text, True, tw_color), (text_padding, y_offset))
         y_offset += line_height
-    
-    # Scroll-Indikator (wenn gescrollt)
+
+    # ── Scroll-Indikator ───────────────────────────────────────────────────
     if prolog_shown and not qte_active and scroll_offset > 0:
-        indicator_x = screen.get_width() - scale(30)
-        indicator_y = y_start + scale(20)
-        
-        # Scroll-Bar
-        bar_height = available_height - scale(40)
-        bar_y = indicator_y
-        
-        # Berechne Position des Scroll-Thumb (invertiert)
+        sb_x      = w - scale(6)
+        sb_h      = available_h - scale(20)
+        sb_y      = y_start + scale(10)
+        pygame.draw.rect(screen, (30, 20, 5), (sb_x, sb_y, scale(4), sb_h))
         if max_scroll > 0:
-            thumb_height = max(scale(20), bar_height * visible_lines // total_lines)
-            thumb_y = bar_y + (bar_height - thumb_height) * (1 - scroll_offset / max_scroll)
-        else:
-            thumb_height = bar_height
-            thumb_y = bar_y
-        
-        # Zeichne Bar (Hintergrund)
-        pygame.draw.rect(screen, DARK_GRAY, (indicator_x, bar_y, scale(10), bar_height))
-        # Zeichne Thumb (aktueller Scroll)
-        pygame.draw.rect(screen, TERMINAL_GREEN, (indicator_x, int(thumb_y), scale(10), int(thumb_height)))
-    
-    # Input-Bereich (nur im Spiel-Modus, nicht im Prolog oder QTE)
+            thumb_h = max(scale(16), sb_h * visible_lines // total_lines)
+            thumb_y = sb_y + (sb_h - thumb_h) * (1 - scroll_offset / max_scroll)
+            pygame.draw.rect(screen, TERMINAL_AMBER_DIM,
+                             (sb_x, int(thumb_y), scale(4), int(thumb_h)))
+
+    # ── Input-Bereich ──────────────────────────────────────────────────────
     if prolog_shown and not qte_active:
-        input_y = screen.get_height() - input_area_height
-        # Input separator (simple Linie statt per-pixel loop)
-        w = screen.get_width()
-        pygame.draw.line(screen, TERMINAL_DIM, (padding, input_y - scale(10)), (w - padding, input_y - scale(10)), 1)
-        
-        # Text vor und nach dem Cursor
-        text_before_cursor = input_text[:cursor_position]
-        text_after_cursor = input_text[cursor_position:]
-        
-        # Blinkender Cursor
-        if (current_time // 500) % 2 == 0:
-            cursor_char = "|"
-        else:
-            cursor_char = " "
-        
-        prompt = f"> {text_before_cursor}{cursor_char}{text_after_cursor}"
-        
-        # Subtiler Glow auf der Prompt-Zeile
-        glow_surf = font_text.render(prompt, True, (*TERMINAL_DIM, 60))
-        screen.blit(glow_surf, (text_padding - 1, input_y - 1))
-        
-        input_surf = font_text.render(prompt, True, TERMINAL_GREEN)
-        screen.blit(input_surf, (text_padding, input_y))
-        
-        # History-Hinweis anzeigen wenn History vorhanden
+        input_y = h - input_area_h
+        pygame.draw.line(screen, TERMINAL_AMBER_DIM,
+                         (text_padding, input_y - scale(6)),
+                         (w - text_padding, input_y - scale(6)), 1)
+
+        cursor_char = "|" if (current_time // 520) % 2 == 0 else " "
+        prompt = f"> {input_text[:cursor_position]}{cursor_char}{input_text[cursor_position:]}"
+        draw_text_glow(screen, prompt, (text_padding, input_y + scale(6)),
+                       COLOR_PLAYER, font_text, glow_radius=1, glow_alpha=40)
+
         if command_history and history_index != -1:
-            hint_text = f"[History: {history_index + 1}/{len(command_history)}]"
-            hint_surf = font_hint.render(hint_text, True, GRAY)
-            screen.blit(hint_surf, (screen.get_width() - scale(200), input_y + scale(35)))
-    
+            hint_text = f"[{history_index + 1}/{len(command_history)}]"
+            hint_surf = font_small.render(hint_text, True, TERMINAL_AMBER_DIM)
+            screen.blit(hint_surf, (w - hint_surf.get_width() - text_padding,
+                                    input_y + scale(10)))
+
     elif not prolog_shown and not qte_active:
-        # Prolog-Hinweis mit Puls
-        hint_y = screen.get_height() - scale(40)
-        pulse = int(180 + 60 * math.sin(current_time * 0.003))
-        hint_surf = font_text.render("[Drücke ENTER um fortzufahren]", True, (pulse // 6, pulse // 3, pulse))
-        hint_rect = hint_surf.get_rect(center=(screen.get_width() // 2, hint_y))
-        screen.blit(hint_surf, hint_rect)
-    
-    # CRT-Scanline Overlay (gecacht für Performance)
-    global _scanline_cache, _scanline_cache_size
-    sw, sh = screen.get_width(), screen.get_height()
-    if _scanline_cache is None or _scanline_cache_size != (sw, sh):
-        _scanline_cache = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        for y in range(0, sh, 3):
-            pygame.draw.line(_scanline_cache, (0, 0, 0, 18), (0, y), (sw, y), 1)
-        _scanline_cache_size = (sw, sh)
-    screen.blit(_scanline_cache, (0, 0))
+        pulse     = int(160 + 60 * math.sin(current_time * 0.003))
+        hint_col  = (pulse, int(pulse * 0.72), 0)
+        hint_surf = font_text.render("[Drücke ENTER um fortzufahren]", True, hint_col)
+        screen.blit(hint_surf, hint_surf.get_rect(center=(w // 2, h - scale(38))))
 
 
 def draw_options(current_time):

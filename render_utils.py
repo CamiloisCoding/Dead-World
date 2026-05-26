@@ -101,3 +101,28 @@ def draw_text_line(surface, text, x, y, color, font):
     if text.strip():  # Skip empty lines to avoid rendering artifacts
         surf = font.render(text, True, color)
         surface.blit(surf, (x, y))
+
+
+def draw_text_glow(surface, text, pos, color, font, glow_radius=1, glow_alpha=35):
+    """Scharfer Text mit optionalem Phosphor-Halo. Artifact-frei auf reinem Schwarz.
+
+    Glow: kein AA (exakte Pixel) + colorkey(0,0,0) → nur Textpixel leuchten,
+    kein Blur-Rechteck. Radius=1 = 8 Blits statt 24 → deutlich sauberer.
+    Sharp: AA direkt geblit, schwarzer BG unsichtbar auf (0,0,0)-Screen.
+    """
+    if not text or not text.strip():
+        return
+
+    x, y = pos
+
+    if glow_radius > 0 and glow_alpha > 0:
+        glow = font.render(text, False, color)
+        glow.set_colorkey((0, 0, 0))
+        glow.set_alpha(glow_alpha)
+        for dx in (-glow_radius, 0, glow_radius):
+            for dy in (-glow_radius, 0, glow_radius):
+                if dx == 0 and dy == 0:
+                    continue
+                surface.blit(glow, (x + dx, y + dy))
+
+    surface.blit(font.render(text, True, color), pos)

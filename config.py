@@ -38,7 +38,7 @@ PAUSED = 5
 # ========================
 # COLORS — Atmospheric Post-Apocalyptic Palette
 # ========================
-BLACK = (8, 6, 8)
+BLACK = (0, 0, 0)
 BLOOD_RED = (170, 20, 20)
 DARK_RED = (90, 5, 5)
 DEEP_RED = (50, 0, 0)
@@ -47,13 +47,26 @@ LIGHT_GRAY = (120, 115, 120)
 DARK_GRAY = (22, 18, 22)
 HOVER_RED = (220, 40, 30)
 GREEN = (0, 255, 0)
-TERMINAL_GREEN = (60, 140, 255)
-TERMINAL_DIM = (30, 70, 140)
-TERMINAL_BG = (8, 10, 18)
 EMBER_ORANGE = (255, 120, 30)
 EMBER_DIM = (180, 70, 10)
 ACCENT_GLOW = (255, 60, 40)
 FOG_COLOR = (20, 18, 25)
+
+# Amber-Phosphor Terminal Palette
+TERMINAL_AMBER        = (215, 155, 40)   # Haupttext — warmes Amber
+TERMINAL_AMBER_BRIGHT = (255, 205, 80)   # Helles Amber — Spieler-Input
+TERMINAL_AMBER_DIM    = (110, 75, 18)    # Gedimmtes Amber — System/UI
+TERMINAL_AMBER_BAR    = (12, 8, 0)       # Fast-Schwarz mit Amber-Hauch — Top-Bar BG
+TERMINAL_GREEN        = TERMINAL_AMBER   # Alias für Scrollbar-Kompatibilität
+TERMINAL_DIM          = TERMINAL_AMBER_DIM
+TERMINAL_BG           = BLACK
+
+# Overlay-Farbkodierung (Amber-Phosphor Terminal)
+COLOR_NORMAL  = (215, 155, 40)    # Normaler Erzähltext — Amber
+COLOR_PLAYER  = (255, 205, 80)    # Spieler-Eingabe-Echo — helles Amber
+COLOR_DANGER  = (220, 55, 35)     # Kampf / Gefahr — Rot
+COLOR_SYSTEM  = (110, 75, 18)     # System-Trennzeilen — gedimmtes Amber
+COLOR_SUCCESS = (80, 200, 100)    # Erfolg / Level-Up — Grün
 
 # ========================
 # KEY REPEAT TIMING (ms)
