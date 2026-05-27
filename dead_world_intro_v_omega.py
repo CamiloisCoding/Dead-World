@@ -96,7 +96,7 @@ def stop_combat_sounds():
         _current_punch_sound = None
 
 # Scaling-Funktionen und Font-Cache in render_utils.py
-current_resolution_index = 4  # Standard: Sehr Hoch (1920x1080)
+current_resolution_index = 3  # Standard: Hoch (1680x1050)
 
 # Fenster erstellen
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
@@ -175,9 +175,6 @@ numpad_awaiting_code = False
 #krankenhaus
 krankenhaus_schrank_geschoben = False
 numpad_nutzen = False
-#Coffeeshop Gasse
-coffeeshop_tür_auf = False
-gasse_ende_untersucht = False
 
 # Key-Repeat für Cursor-Tasten
 delete_held = False
@@ -305,7 +302,6 @@ ITEM_DEFS = {
     'keycard_armband_lvl1': Item('keycard_armband_lvl1', 'Keycard-Armband (Stufe 1)', 'Ein RFID-Sicherheitsarmband mit Zugangslevel 1.', weight=1),
     'keycard_armband_lvl2': Item('keycard_armband_lvl2', 'Keycard-Armband (Stufe 2)', 'Ein RFID-Sicherheitsarmband mit Zugangslevel 2.', weight=1),
     'keycard_armband_lvl3': Item('keycard_armband_lvl3', 'Keycard-Armband (Stufe 3)', 'Ein RFID-Sicherheitsarmband mit höchstem Zugangslevel.', weight=1),
-    'coffeeshop_schlüssel': Item('coffeeshop_schlüssel', 'Coffeeshop-Schlüssel', 'Ein kleiner Schlüssel mit einem verblassten Kaffeetassen-Anhänger. Öffnet wohl eine Tür in der Nähe.', weight=1),
 }
 
 def get_item_name(key):
@@ -1026,105 +1022,98 @@ rooms = {
     },
     'krankenhaus_flur_norden_f2': {#Krankenhaus
         'name': 'Krankenhaus - Flur: Norden-F2',
-        'description': 'Der Flur führt im Norden zu dem Mitarbeiter Raum.',
+        'description': 'Der Flur führt im Norden zu dem Mitarbeiter Raum, im westen ein Raum mit aufgebrochener tür.',
         'exits': {'Westen': 'krankenhaus_aufnahmeraum','Norden': 'krankenhaus_mitarbeiter_flur','Süden': 'krankenhaus_flur_westen_f2'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_aufnahmeraum': {#Krankenhaus
         'name': 'Krankenhaus - Aufnahme ',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Viele Akten von Patienten und verschiedene bilder in regalen.',
         'exits': {'Osten': 'krankenhaus_flur_norden_f2'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_flur_mitte_f2': {#Krankenhaus
         'name': 'Krankenhaus - Flur: Mitte',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Der Gang ist direkt über dem Innenhof, fenster durch die man hinunter schauen kann, im Osten liegt die Schwesterstation.',
         'exits': {'Osten': 'krankenhaus_schwesterstation','Süden': 'krankenhaus_flur_osten_f2','Westen': 'krankenhaus_flur_westen_f2'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_mitarbeiter_flur': {#Krankenhaus
         'name': 'Krankenhaus - Flur: Norden-F2',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Ein schmaler flur, fenster in der Decke, der Mitarbeiterraum direkt gerade aus.',
         'exits': {'Norden': 'krankenhaus_mitarbeiter_raum','Süden': 'krankenhaus_flur_norden_f2'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_mitarbeiter_raum': {#Krankenhaus
         'name': 'Krankenhaus - Mitarbeiter Raum',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Tische und stühle zum sitzen, eine kafemaschiene sowie ofen und kühlschrank im Raum, im Westen sind noch die Schließfächer der Mitarbeiter.',
         'exits': {'Westen': 'krankenhaus_schließfach_raum','Süden': 'krankenhaus_mitarbeiter_flur'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_schließfach_raum': {#Krankenhaus
         'name': 'Krankenhaus - Schließfach Raum',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Schließfächer bedecken die Wände, manche scheinen auch noch auf zu sein.',
         'exits': {'Osten': 'krankenhaus_mitarbeiter_raum'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_schwesterstation': {#Krankenhaus
         'name': 'Krankenhaus - Schwesternstation',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Im Raum sind bänke, tische und stühle, die Küche abgeblockt ohne weg mehr hin, Im norden eine doppeltür zu einem krankenzimmer und im Süden führt der Gang zum wäscheraum.',
         'exits': {'Norden': 'krankenhaus_krankenzimmer','Süden': 'krankenhaus_waschraum_flur'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_krankenzimmer': {#Krankenhaus
         'name': 'Krankenhaus - Krankenzimmer',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Mehrere Krankenbetten und vorhänge für etwas privatsphäre unter den Patienten.',
         'exits': {'Süden': 'krankenhaus_schwesterstation'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_waschraum_flur': {#Krankenhaus
         'name': 'Krankenhaus - Flur: Waschraum Osten',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Fenster zeigen nach drausen auf die staßen, der flur mit blut gezeichnet, Im Westen führt der Gang weiter.',
         'exits': {'Westen': 'krankenhaus_waschraum_flur_süden','Norden': 'krankenhaus_schwesterstation'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_waschraum_flur_süden': {#Krankenhaus
         'name': 'Krankenhaus - Flur: Waschraum Süden',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Im Norden gehts in den waschraum.',
         'exits': {'Osten': 'krankenhaus_waschraum_flur','Norden': 'krankenhaus_waschraum'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_waschraum': {#Krankenhaus
         'name': 'Krankenhaus - Waschraum',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Waschmaschienen bestücken die Wände, verschiedene körbe mit noch dreckiger und gewaschener wäsche auf dem Boden,.',
         'exits': {'Süden': 'krankenhaus_waschraum_flur_süden','Norden': 'krankenhaus_flur_osten_f2','Osten':'krankenhaus_behandlungs_raum'},
-        'items': [],
-        'in_development': False
-    },
-    'krankenhaus_flur_osten_f2': {#Krankenhaus
-        'name': 'Krankenhaus - Flur: Osten F2',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
-        'exits': {'Norden': 'krankenhaus_flur_mitte_f2','Süden': 'krankenhaus_waschraum','Westen':'krankenhaus_flur_süden_f2'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_flur_süden_f2': {#Krankenhaus
         'name': 'Krankenhaus - Flur: Süden F2',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Das Ende des Flurs abgetrennt und verbarikadiert.',
         'exits': {'Osten': 'krankenhaus_flur_osten_f2'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_flur_osten_f2': {#Krankenhaus
         'name': 'Krankenhaus - Flur: Osten F2',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Eine verbindung zum waschraum und der Mitte des krankenhauses.',
         'exits': {'Osten': 'krankenhaus_flur__f2','Süden': 'krankenhaus_waschraum','Westen':'krankenhaus_flur_süden_f2'},
         'items': [],
         'in_development': False
     },
     'krankenhaus_behandlungs_raum': {#Krankenhaus
         'name': 'Krankenhaus - Behandlungsraum',
-        'description': 'Kaputte Glastüren stehen offen. Aus dem Inneren des Krankenhauses hörst du Zombies schreien. Im OSTEN führt der Weg zurück auf die Straße.',
+        'description': 'Die Betten total verschoben, schränke offen und tische umgeworfen auf dem Boden.',
         'exits': {'Westen':'krankenhaus_waschraum'},
         'items': [],
         'in_development': False
@@ -1165,21 +1154,21 @@ rooms = {
     },
     'bibliothek_1.1': {#Bibliothek
         'name': 'Bibliothek 1',
-        'description': '',
+        'description': 'Der Tresen leer, schränke umgeworfen, Im Westen sieht es so aus als ginge es weiter sowie auch in richtung Osten',
         'exits': {'südwesten': 'bibliothek_eingang', 'westen': 'bibliothek_1.2', 'osten': 'bibliothek_2'},
         'items': [],
         'in_development': False
     },
     'bibliothek_1.2': {#Bibliothek
         'name': 'Bibliothek ',
-        'description': '',
+        'description': 'Sackgasse, umgefallene schränke blocken den weg',
         'exits': {'osten': 'bibliothek_1.1'},
         'items': ['Stück Papier'],
         'in_development': False
     },
     'bibliothek_2': {#Bibliothek
         'name': 'Bibliothek ',
-        'description': '',
+        'description': 'Keine Regale im weg, nur bücher verteilt auf dem Boden sowie getrocknetes blut',
         'exits': {'norden': 'bibliothek_3', 'westen': 'bibliothek_1.1'},
         'items': [],
         'in_development': False
@@ -1200,7 +1189,7 @@ rooms = {
     },
     'bibliothek_5': {#Bibliothek
         'name': 'Bibliothek',
-        'description': '',
+        'description': 'Kein durchgang direkt im Westen, jedoch im Süden sieht es so aus als könnte man dadurch',
         'exits': {'süden': 'bibliothek_6', 'osten': 'bibliothek_4'},
         'items': [],
         'enemy': 'zombie',
@@ -1208,21 +1197,21 @@ rooms = {
     },
     'bibliothek_6': {#Bibliothek
         'name': 'Bibliothek 1',
-        'description': '',
+        'description': 'Der Weg führt hinter dem Tresen entlang',
         'exits': {'westen': 'bibliothek_7', 'norden': 'bibliothek_5'},
         'items': [],
         'in_development': False
     },
     'bibliothek_7': {#Bibliothek
         'name': 'Bibliothek 1',
-        'description': '',
+        'description': 'Weiterhin schränke und bücher auf dem Boden',
         'exits': {'osten': 'bibliothek_6', 'norden': 'bibliothek_8'},
         'items': [],
         'in_development': False
     },
     'bibliothek_8': {#Bibliothek
         'name': 'Bibliothek 1',
-        'description': '',
+        'description': 'Das Ende des Ganges, die Tür abgeblockt, In der Wand neben der Tür wurde "Tür Geschlossen halten" reingeritzt, schreie und kratzen sind von hinter der Tür hörbar',
         'exits': {'süden': 'bibliothek_7'},
         'items': ['kampfmesser'],
         'in_development': False
@@ -1254,35 +1243,35 @@ rooms = {
     },
     'walmart_1': {#Walmart
         'name': 'Walmart',
-        'description': 'Du stehst im walmart, die siehst viele umgefallene Regale, und viele Artikel liegen auf dem Boden. Links von dir bemerkst du einen durchgang.',
+        'description': 'Du stehst im walmart, die siehst viele umgefallene Regale, und viele Artikel liegen auf dem Boden. Im Westen bemerkst du einen durchgang.',
         'exits': {'süden': 'parkplatz', 'westen': 'walmart_2'},
         'items': [],
         'in_development': True
     },
     'walmart_2': {#Walmart
         'name': 'Walmart',
-        'description': 'Du stehst in der unteren linken ecke des walmarts, weiterhin nur umgefallene Regale in sicht. Es sieht so aus als könntest du gerade aus weiter gehen.',
+        'description': 'Du stehst in der unteren westlichen ecke des walmarts, weiterhin nur umgefallene Regale in sicht. Es sieht so aus als könntest du i richtung Norden weiter gehen.',
         'exits': {'norden': 'walmart_3','osten': 'walmart_3'},
         'items': [],
         'in_development': True
     },
     'walmart_3': {#Walmart
         'name': 'Walmart',
-        'description': 'Weitere Regale am stehen, gerade aus wird dein weg von umgefallenen regalen blockiert, du siehst einen durchgang rechts von dir.',
+        'description': 'Weitere Regale am stehen, gerade aus wird dein weg von umgefallenen regalen blockiert, du siehst einen durchgang in richtung Osten.',
         'exits': {'süden': 'walmart_2', 'osten': 'walmart_4'},
         'items': ['schokoriegel', 'energieriegel'],
         'in_development': True
     },
     'walmart_4': {#Walmart
         'name': 'Walmart',
-        'description': 'Weiter drinne im Walmart siehst du weiter hin nur umgefallene Regale. Der weg führt weiter hin nach rechts.',
-        'exits': {'osten': 'walmart_5', 'westen': 'walmart_3'},
+        'description': 'Weiter drinne im Walmart siehst du weiter hin nur umgefallene Regale. Der weg führt weiter nur nach Norden.',
+        'exits': {'Norden': 'walmart_5', 'westen': 'walmart_3'},
         'items': [],
         'in_development': True
     },
     'walmart_5': {#Walmart
         'name': 'Walmart',
-        'description': 'In der Mitte vom Walmart hast du eine halbwegs gute sicht durch den Laden, in der unteren rechten ecke des Ladens siehst du etwas liegen',
+        'description': 'In der Mitte vom Walmart hast du eine halbwegs gute sicht durch den Laden, in der Südöstlichen ecke des Ladens siehst du etwas liegen.',
         'exits': {'norden': 'walmart_6', 'westen': 'walmart_4'},
         'items': [],
         'enemy': 'zombie',
@@ -1291,28 +1280,28 @@ rooms = {
     },
     'walmart_6': {#Walmart
         'name': 'Walmart',
-        'description': 'Der weg nach rechts ist nun abgeblockt von Regalen. Dafür ist gerade aus nun der weg frei.',
+        'description': 'Der weg nach osten ist nun abgeblockt von Regalen. Dafür ist im Westen nun der weg frei.',
         'exits': {'westen': 'walmart_7', 'süden': 'walmart_5'},
         'items': [],
         'in_development': True
     },
     'walmart_7': {#Walmart
         'name': 'Walmart',
-        'description': '',
+        'description': 'Verrottete lebensmittel auf dem Boden sowie frisches blut komplett verteilt, weirere regale liegen auf dem Boden, Im norden sieht es so aus als wäre genug platz zum durch gehen',
         'exits': {'norden': 'walmart_8', 'osten': 'walmart_6'},
         'items': [],
         'in_development': True
     },
     'walmart_8': {#Walmart
         'name': 'Walmart',
-        'description': '',
+        'description': 'Mehr schränke, mehr verrottete lebensmittel, leere flaschen und leere verpackungen, selbst hier ist alles noch verwüstet, im Norden führt es in die Nordwestliche ecke des Ladens',
         'exits': {'norden': 'walmart_9', 'süden': 'walmart_7'},
         'items': [],
         'in_development': True
     },
     'walmart_9': {#Walmart
         'name': 'Walmart',
-        'description': '',
+        'description': 'Die Tür in der Ecke auch abgeblockt und zu, richtung süden ist der gesammte gang frei, aber eng und mehr vermüllung auf dem Boden',
         'exits': {'osten': 'walmart_10', 'süden': 'walmart_8'},
         'items': [],
         'enemy': 'zombie',
@@ -1321,7 +1310,7 @@ rooms = {
     },
     'walmart_10': {#Walmart
         'name': 'Walmart',
-        'description': '',
+        'description': 'Nun in der Nordöstlichen ecke des Ladens kannst du sehen das Fast bis zum ende des ganges frei ist',
         'exits': {'süden': 'walmart_11', 'westen': 'walmart_9'},
         'items': [],
         'in_development': True
@@ -1430,12 +1419,8 @@ rooms = {
     },
     'park_straße': {#Stadt
         'name': 'Park Straße',
-        'description': (
-            'Eine Straße entlang des Parks. Im NORDEN liegt die östliche Weggabelung. '
-            'Im OSTEN öffnet sich eine enge Gasse zwischen den Gebäuden. '
-            'Nach SÜDEN führt der Weg zur Skyscraper Weggabelung.'
-        ),
-        'exits': {'norden': 'oestlich_weggabelung', 'osten': 'gasse', 'süden': 'skyscraper_weggabelung'},
+        'description': 'Eine Straße entlang des Parks. Im NORDEN liegt die östliche Weggabelung. Im OSTEN erstreckt sich der Park. Nach SÜDEN führt der Weg zur Skyscraper Weggabelung.',
+        'exits': {'norden': 'oestlich_weggabelung', 'osten': 'park', 'süden': 'skyscraper_weggabelung', 'südosten': 'oestlich_park_erweiterung' },
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1705,16 +1690,11 @@ rooms = {
     },
     'straße_pizzeria': {#Stadt
         'name': 'Straße Pizzeria',
-        'description': (
-            'Eine Straße vor einer alten Pizzeria. Das verblasste Schild schwankt im Wind. '
-            'Im NORDEN siehst du das schwere Eingangstor der Polizeistation. '
-            'Im OSTEN geht es zur Skyscraper Weggabelung. '
-            'Nach WESTEN führt der Weg an die Ostseite des Home-Depot-Umrings.'
-        ),
-        'exits': {'osten': 'skyscraper_weggabelung', 'westen': 'home_depot_ne', 'norden': 'polizei_umkleide'},
+        'description': 'Eine Straße vor einer alten Pizzeria. Im OSTEN geht es zur Skyscraper Weggabelung. Nach WESTEN führt der Weg an die Ostseite des Home-Depot-Umrings.',
+        'exits': {'osten': 'skyscraper_weggabelung', 'westen': 'home_depot_ne'},
         'items': [],
-        'in_development': False,
-        'spawn_chance': True,
+        'in_development': True,
+        'spawn_chance': False,
         'zombie_spawn': False
     },
     
@@ -1733,98 +1713,6 @@ rooms = {
         'exits': {'norden': 'haus_3_v'},
         'items': [],
         'in_development': True
-    },
-
-    # ── GASSE & COFFEESHOP ─────────────────────────────────────────
-    'gasse': {#Stadt
-        'name': 'Gasse',
-        'description': (
-            'Eine enge, dunkle Gasse zwischen zwei Gebäuden. '
-            'Mülltonnen stehen an den Wänden, Graffiti bedeckt den alten Beton. '
-            'Im WESTEN liegt die Park Straße. Nach SÜDEN führt die Gasse tiefer hinein.'
-        ),
-        'exits': {'westen': 'park_straße', 'süden': 'gasse_ende'},
-        'items': [],
-        'in_development': False,
-        'spawn_chance': True,
-        'zombie_spawn': False
-    },
-    'gasse_ende': {#Stadt
-        'name': 'Gassenende',
-        'description': (
-            'Das Ende der Gasse. Eine verwitterte Backsteinwand versperrt den Weg nach Süden. '
-            'Eine schwere, mit Graffiti besprühte Holztür liegt im WESTEN — '
-            'ein verblasstes Kaffeetassen-Logo ist noch zu erkennen. Die Tür ist verschlossen. '
-            'Unter einer umgekippten Mülltonne liegt etwas im Dreck. '
-            'Nach NORDEN führt die Gasse zurück.'
-        ),
-        'exits': {'norden': 'gasse'},
-        'items': [],
-        'in_development': False,
-        'spawn_chance': False,
-        'zombie_spawn': False
-    },
-    'coffeeshop': {#Coffeeshop
-        'name': 'Coffeeshop',
-        'description': (
-            'Du betrittst den verlassenen Coffeeshop. Der Geruch von altem Kaffee hängt noch schwach in der Luft. '
-            'Umgeworfene Stühle und Tische stehen kreuz und quer. Hinter dem Tresen steht eine verrostete Espressomaschine. '
-            'Die Vitrine ist aufgebrochen und leer geplündert — bis auf ein paar vergessene Schokoriegel. '
-            'Die Tür im OSTEN führt zurück in die Gasse.'
-        ),
-        'exits': {'osten': 'gasse_ende'},
-        'items': ['schokoriegel', 'wasser', 'energieriegel'],
-        'in_development': False,
-        'spawn_chance': False,
-        'zombie_spawn': False
-    },
-
-    # ── POLIZEISTATION ──────────────────────────────────────────────
-    'polizei_umkleide': {#Polizeistation
-        'name': 'Polizeistation – Umkleideraum',
-        'description': (
-            'Du betrittst die Polizeistation durch die schwere Stahltür im Süden. '
-            'Der Umkleideraum riecht nach Rost und altem Leder. '
-            'An den Wänden stehen aufgebrochene Metallspinde – die meisten leer geplündert. '
-            'Einige Stühle und Bänke liegen umgeworfen auf dem Boden. '
-            'Nach NORDEN führen zwei Türen ins Hauptbüro.'
-        ),
-        'exits': {'süden': 'straße_pizzeria', 'norden': 'polizei_hauptbuero'},
-        'items': ['medkit', 'konserven'],
-        'in_development': False,
-        'spawn_chance': True,
-        'zombie_spawn': True
-    },
-    'polizei_hauptbuero': {#Polizeistation
-        'name': 'Polizeistation – Hauptbüro',
-        'description': (
-            'Das Hauptbüro ist weitläufig. Acht Schreibtische stehen in zwei Reihen – '
-            'Akten, zerbrochene Monitore und umgekippte Kaffeebecher bedecken sie. '
-            'Schubladen wurden aufgerissen und geleert. '
-            'An der Wand hängt noch ein verblasstes Fahndungsplakat. '
-            'Im SÜDEN liegen die Umkleidekabinen. Nach OSTEN führt eine Tür zum Waffenraum.'
-        ),
-        'exits': {'süden': 'polizei_umkleide', 'osten': 'polizei_waffenraum'},
-        'items': ['crackers', 'wasser'],
-        'in_development': False,
-        'spawn_chance': True,
-        'zombie_spawn': True
-    },
-    'polizei_waffenraum': {#Polizeistation
-        'name': 'Polizeistation – Waffenraum',
-        'description': (
-            'Hinter einer schweren Stahltür liegt der Waffenraum. '
-            'Drei massive Waffenregale aus Stahl stehen an den Wänden – alle leer. '
-            'Wer auch immer hier war, hat alles mitgenommen. '
-            'Auf dem Boden liegt zerbrochenes Glas von einer Vitrine. '
-            'Versteckt unter einem umgefallenen Regal findest du noch eine einsame Pistole. '
-            'Nach WESTEN geht es zurück ins Hauptbüro.'
-        ),
-        'exits': {'westen': 'polizei_hauptbuero'},
-        'items': ['pistole'],
-        'in_development': False,
-        'spawn_chance': False,
-        'zombie_spawn': False
     },
 
 }
@@ -1915,22 +1803,6 @@ BUILDING_HIERARCHY = {
     'park': {
         'name': 'Park',
         'floors': {'main': ['park']},
-    },
-    'polizeistation': {
-        'name': 'Polizeistation',
-        'floors': {
-            'main': [
-                'polizei_umkleide',
-                'polizei_hauptbuero',
-                'polizei_waffenraum',
-            ],
-        },
-    },
-    'coffeeshop': {
-        'name': 'Coffeeshop',
-        'floors': {
-            'main': ['gasse', 'gasse_ende', 'coffeeshop'],
-        },
     },
 }
 
@@ -2060,38 +1932,7 @@ def unlock_transition(transition_id):
         apply_bibliothek_bookshelf_state()
     elif transition_id == 'krankenhaus_geheim_treppe':
         apply_krankenhaus_geheimlabor_state()
-    elif transition_id == 'coffeeshop_tür':
-        apply_coffeeshop_tür_state()
     return None
-
-def apply_coffeeshop_tür_state():
-    """Synchronisiert den WESTEN-Exit zwischen gasse_ende <-> coffeeshop
-    mit dem Flag `coffeeshop_tür_auf`."""
-    global TRANSITIONS
-    ende = rooms.get('gasse_ende')
-    shop = rooms.get('coffeeshop')
-    if not ende or not shop:
-        return
-    if coffeeshop_tür_auf:
-        ende.setdefault('exits', {})['westen'] = 'coffeeshop'
-        shop.setdefault('exits', {})['osten'] = 'gasse_ende'
-        ende['description'] = (
-            'Das Ende der Gasse. Die schwere Holztür im WESTEN steht offen — '
-            'dahinter liegt der verlassene Coffeeshop. '
-            'Nach NORDEN führt die Gasse zurück.'
-        )
-    else:
-        ende.get('exits', {}).pop('westen', None)
-        shop.get('exits', {}).pop('osten', None)
-        ende['description'] = (
-            'Das Ende der Gasse. Eine verwitterte Backsteinwand versperrt den Weg nach Süden. '
-            'Eine schwere, mit Graffiti besprühte Holztür liegt im WESTEN — '
-            'ein verblasstes Kaffeetassen-Logo ist noch zu erkennen. Die Tür ist verschlossen. '
-            'Unter einer umgekippten Mülltonne liegt etwas im Dreck. '
-            'Nach NORDEN führt die Gasse zurück.'
-        )
-    TRANSITIONS[:] = rebuild_transitions_from_exits()
-
 
 def reset_transitions():
     """Kompatibilitätsfunktion (keine Transition-Locks mehr)."""
@@ -2438,7 +2279,7 @@ def load_game_from_menu():
     global bibliothek_4_schrank_geschoben, haus1_tür_auf, menu_music_playing
     global haus1_dachbodentür_auf, haus1_dachboden_box_geschoben
     global nachtschrank_auf, safe_auf_haus1, safe_durchsucht_haus1
-    global krankenhaus_schrank_geschoben, numpad_nutzen, coffeeshop_tür_auf, gasse_ende_untersucht
+    global krankenhaus_schrank_geschoben, numpad_nutzen
     global scored_items, scored_kills, pending_ambiguity, game_history
     
     if not os.path.exists(SAVE_FILE):
@@ -2491,12 +2332,9 @@ def load_game_from_menu():
     safe_durchsucht_haus1 = data.get('safe_durchsucht_haus1', False)
     krankenhaus_schrank_geschoben = data.get('krankenhaus_schrank_geschoben', False)
     numpad_nutzen = data.get('numpad_nutzen', False)
-    coffeeshop_tür_auf = data.get('coffeeshop_tür_auf', False)
-    gasse_ende_untersucht = data.get('gasse_ende_untersucht', False)
     # Puzzle-Übergänge anhand der geladenen Flags rekonstruieren.
     apply_bibliothek_bookshelf_state()
     apply_krankenhaus_geheimlabor_state()
-    apply_coffeeshop_tür_state()
     for ik, charge_val in data.get('item_charges', {}).items():
         if ik in ITEM_DEFS:
             ITEM_DEFS[ik].charge = charge_val
@@ -2953,8 +2791,6 @@ def save_game():
         'safe_durchsucht_haus1': safe_durchsucht_haus1,
         'krankenhaus_schrank_geschoben': krankenhaus_schrank_geschoben,
         'numpad_nutzen': numpad_nutzen,
-        'coffeeshop_tür_auf': coffeeshop_tür_auf,
-        'gasse_ende_untersucht': gasse_ende_untersucht,
         'item_charges': {ik: idef.charge for ik, idef in ITEM_DEFS.items() if idef.max_charge >= 0},
         'scored_items': list(scored_items),
         'scored_kills': list(scored_kills),
@@ -2976,7 +2812,7 @@ def restore_game():
     global bibliothek_4_schrank_geschoben, haus1_tür_auf
     global haus1_dachbodentür_auf, haus1_dachboden_box_geschoben
     global nachtschrank_auf, safe_auf_haus1, safe_durchsucht_haus1
-    global krankenhaus_schrank_geschoben, numpad_nutzen, coffeeshop_tür_auf, gasse_ende_untersucht
+    global krankenhaus_schrank_geschoben, numpad_nutzen
     global scored_items, scored_kills
     try:
         with open(SAVE_FILE, 'r', encoding='utf-8') as f:
@@ -3017,12 +2853,9 @@ def restore_game():
     safe_durchsucht_haus1 = data.get('safe_durchsucht_haus1', False)
     krankenhaus_schrank_geschoben = data.get('krankenhaus_schrank_geschoben', False)
     numpad_nutzen = data.get('numpad_nutzen', False)
-    coffeeshop_tür_auf = data.get('coffeeshop_tür_auf', False)
-    gasse_ende_untersucht = data.get('gasse_ende_untersucht', False)
     # Puzzle-Übergänge anhand der geladenen Flags rekonstruieren.
     apply_bibliothek_bookshelf_state()
     apply_krankenhaus_geheimlabor_state()
-    apply_coffeeshop_tür_state()
     for ik, charge_val in data.get('item_charges', {}).items():
         if ik in ITEM_DEFS:
             ITEM_DEFS[ik].charge = charge_val
@@ -3262,7 +3095,6 @@ def process_command(command):
     if command_handlers.handle_help(cmd): return
     if command_handlers.handle_movement(cmd): return
     if command_handlers.handle_item_commands(cmd): return
-    if command_handlers.handle_examine_command(cmd): return
     if command_handlers.handle_look_map(cmd): return
     if command_handlers.handle_combat_commands(cmd): return
     if command_handlers.handle_container_commands(cmd): return
