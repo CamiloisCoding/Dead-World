@@ -103,10 +103,12 @@ def handle_keydown_pause(event):
 # ========================
 def handle_keydown_options(event):
     """Keydown events while in OPTIONS state."""
+    from config import TERMINAL_COLOR_THEMES
+    num_options = 4  # Auflösung, Musik, Effekte, Terminal-Farbe
     if event.key == pygame.K_UP:
-        _game.options_selected_index = (_game.options_selected_index - 1) % 3
+        _game.options_selected_index = (_game.options_selected_index - 1) % num_options
     elif event.key == pygame.K_DOWN:
-        _game.options_selected_index = (_game.options_selected_index + 1) % 3
+        _game.options_selected_index = (_game.options_selected_index + 1) % num_options
     elif event.key == pygame.K_LEFT:
         if _game.options_selected_index == 0:
             _game.change_resolution(-1)
@@ -115,6 +117,9 @@ def handle_keydown_options(event):
             pygame.mixer.music.set_volume(_game.game_settings['music_volume'])
         elif _game.options_selected_index == 2:
             _game.game_settings['sfx_volume'] = max(0.0, round(_game.game_settings['sfx_volume'] - 0.05, 2))
+        elif _game.options_selected_index == 3:
+            new_idx = max(0, _game.game_settings['terminal_color'] - 1)
+            _game.apply_terminal_theme(new_idx)
     elif event.key == pygame.K_RIGHT:
         if _game.options_selected_index == 0:
             _game.change_resolution(1)
@@ -123,6 +128,9 @@ def handle_keydown_options(event):
             pygame.mixer.music.set_volume(_game.game_settings['music_volume'])
         elif _game.options_selected_index == 2:
             _game.game_settings['sfx_volume'] = min(1.0, round(_game.game_settings['sfx_volume'] + 0.05, 2))
+        elif _game.options_selected_index == 3:
+            new_idx = min(len(TERMINAL_COLOR_THEMES) - 1, _game.game_settings['terminal_color'] + 1)
+            _game.apply_terminal_theme(new_idx)
 
 
 # ========================

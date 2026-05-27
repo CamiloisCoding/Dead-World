@@ -69,6 +69,48 @@ COLOR_SYSTEM  = (110, 75, 18)     # System-Trennzeilen — gedimmtes Amber
 COLOR_SUCCESS = (80, 200, 100)    # Erfolg / Level-Up — Grün
 
 # ========================
+# TERMINAL COLOR THEMES
+# ========================
+# Each entry: name, normal, bright, dim, bar (top-bar background)
+TERMINAL_COLOR_THEMES = [
+    {
+        'name':   'Amber',
+        'normal': (215, 155,  40),
+        'bright': (255, 205,  80),
+        'dim':    (110,  75,  18),
+        'bar':    ( 12,   8,   0),
+    },
+    {
+        'name':   'Grün',
+        'normal': ( 55, 200,  70),
+        'bright': (110, 255, 100),
+        'dim':    ( 22,  80,  28),
+        'bar':    (  0,  10,   2),
+    },
+    {
+        'name':   'Weiß',
+        'normal': (195, 195, 195),
+        'bright': (255, 255, 255),
+        'dim':    ( 85,  85,  85),
+        'bar':    (  8,   8,   8),
+    },
+    {
+        'name':   'Cyan',
+        'normal': ( 35, 195, 220),
+        'bright': ( 75, 240, 255),
+        'dim':    ( 12,  72,  88),
+        'bar':    (  0,   6,  12),
+    },
+    {
+        'name':   'Rot',
+        'normal': (200,  38,  38),
+        'bright': (255,  75,  55),
+        'dim':    ( 80,  14,  14),
+        'bar':    ( 10,   0,   0),
+    },
+]
+
+# ========================
 # KEY REPEAT TIMING (ms)
 # ========================
 backspace_initial_delay = 250

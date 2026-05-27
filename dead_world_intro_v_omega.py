@@ -22,11 +22,12 @@ menu_music_playing = False
 
 # Dedizierte Mixer-Kanäle: ein Kanal pro Sound-Typ verhindert Überlappung
 # channel.play() stoppt automatisch den vorherigen Sound auf demselben Kanal
-_ZOMBIE_CH = pygame.mixer.Channel(0)
-_GUN_CH    = pygame.mixer.Channel(1)
-_PUNCH_CH  = pygame.mixer.Channel(2)
+_ZOMBIE_CH     = pygame.mixer.Channel(0)
+_GUN_CH        = pygame.mixer.Channel(1)
+_PUNCH_CH      = pygame.mixer.Channel(2)
+_ZOMBIE_DIE_CH = pygame.mixer.Channel(3)
 
-# Zombie Sounds
+# --- Zombie Ambient Sounds (kurze Groans/Calls/Roars) ---
 ZOMBIE_SOUND_DIR = os.path.join(BASE_DIR, "Game_music", "Zombie Sounds")
 ZOMBIE_SOUNDS = []
 for _zs_file in sorted(os.listdir(ZOMBIE_SOUND_DIR)):
@@ -37,18 +38,36 @@ for _zs_file in sorted(os.listdir(ZOMBIE_SOUND_DIR)):
             pass
 
 def play_random_zombie_sound():
-    """Spielt einen zufälligen Zombie-Sound auf dem dedizierten Kanal.
-    Startet automatisch ein neuer Sound stoppt den vorherigen."""
+    """Spielt einen zufälligen Zombie-Ambient-Sound auf dem dedizierten Kanal.
+    Ein neuer Sound stoppt automatisch den vorherigen."""
     if ZOMBIE_SOUNDS:
         sound = random.choice(ZOMBIE_SOUNDS)
         sound.set_volume(game_settings.get('sfx_volume', 0.7))
         _ZOMBIE_CH.play(sound)
 
 def stop_zombie_sounds():
-    """Stoppt den Zombie-Sound sofort (z.B. nach dem Kill)."""
+    """Stoppt den Zombie-Ambient-Sound sofort."""
     _ZOMBIE_CH.stop()
 
-# Gun Sounds
+# --- Zombie Dying Sounds (Sterbe-Schrei beim Kill) ---
+ZOMBIE_DYING_SOUND_DIR = os.path.join(BASE_DIR, "Game_music", "Zombie Dying Sounds")
+ZOMBIE_DYING_SOUNDS = []
+for _zd_file in sorted(os.listdir(ZOMBIE_DYING_SOUND_DIR)):
+    if _zd_file.endswith(('.mp3', '.wav', '.ogg')):
+        try:
+            ZOMBIE_DYING_SOUNDS.append(pygame.mixer.Sound(os.path.join(ZOMBIE_DYING_SOUND_DIR, _zd_file)))
+        except Exception:
+            pass
+
+def play_zombie_dying_sound():
+    """Spielt einen Sterbe-Sound wenn der Zombie getötet wird.
+    Benutzt einen eigenen Kanal damit er nicht mit Ambient-Sounds kollidiert."""
+    if ZOMBIE_DYING_SOUNDS:
+        sound = random.choice(ZOMBIE_DYING_SOUNDS)
+        sound.set_volume(game_settings.get('sfx_volume', 0.85))
+        _ZOMBIE_DIE_CH.play(sound)
+
+# --- Gun Sounds ---
 GUN_SOUND_DIR = os.path.join(BASE_DIR, "Game_music", "Gun Sounds")
 GUN_SOUNDS = []
 for _gs_file in sorted(os.listdir(GUN_SOUND_DIR)):
@@ -58,7 +77,7 @@ for _gs_file in sorted(os.listdir(GUN_SOUND_DIR)):
         except Exception:
             pass
 
-# Punch/Melee Sounds
+# --- Punch/Melee Sounds ---
 PUNCH_SOUND_DIR = os.path.join(BASE_DIR, "Game_music", "Punch_Sounds")
 PUNCH_SOUNDS = []
 for _ps_file in sorted(os.listdir(PUNCH_SOUND_DIR)):
@@ -120,15 +139,39 @@ visited_rooms = set()  # Besuchte Räume (zB. für Resets/Stats)
 
 # Menü-Navigation
 menu_selected_index = 0
-options_selected_index = 0  # 0=Auflösung, 1=Musik, 2=Effekte
+options_selected_index = 0  # 0=Auflösung, 1=Musik, 2=Effekte, 3=Terminal-Farbe
 
 # Game Settings
 game_settings = {
     'music_volume': 0.15,
     'sfx_volume': 0.15,
     'difficulty': 'Normal',
-    'resolution': 3  # Index in RESOLUTION_PRESETS
+    'resolution': 3,           # Index in RESOLUTION_PRESETS
+    'terminal_color': 2,       # Index in TERMINAL_COLOR_THEMES (2 = Weiß)
 }
+
+
+def apply_terminal_theme(index: int):
+    """Wendet das gewählte Terminal-Farbschema sofort auf alle globalen Farbvariablen an."""
+    global COLOR_NORMAL, COLOR_PLAYER, COLOR_SYSTEM
+    global TERMINAL_AMBER, TERMINAL_AMBER_BRIGHT, TERMINAL_AMBER_DIM, TERMINAL_AMBER_BAR
+    global TERMINAL_GREEN, TERMINAL_DIM
+
+    theme = TERMINAL_COLOR_THEMES[index % len(TERMINAL_COLOR_THEMES)]
+    COLOR_NORMAL          = theme['normal']
+    COLOR_PLAYER          = theme['bright']
+    COLOR_SYSTEM          = theme['dim']
+    TERMINAL_AMBER        = theme['normal']
+    TERMINAL_AMBER_BRIGHT = theme['bright']
+    TERMINAL_AMBER_DIM    = theme['dim']
+    TERMINAL_AMBER_BAR    = theme['bar']
+    TERMINAL_GREEN        = theme['normal']
+    TERMINAL_DIM          = theme['dim']
+    game_settings['terminal_color'] = index % len(TERMINAL_COLOR_THEMES)
+
+
+# Startthema anwenden (Weiß, Index 2)
+apply_terminal_theme(2)
 
 # Text Adventure Game Data
 current_room = 'start'
@@ -3027,6 +3070,7 @@ def save_game():
         'item_charges': {ik: idef.charge for ik, idef in ITEM_DEFS.items() if idef.max_charge >= 0},
         'scored_items': list(scored_items),
         'scored_kills': list(scored_kills),
+        'terminal_color': game_settings.get('terminal_color', 0),
     }
     try:
         with open(SAVE_FILE, 'w', encoding='utf-8') as f:
@@ -3101,6 +3145,7 @@ def restore_game():
     game_start_ticks = pygame.time.get_ticks() - elapsed
     scored_items = set(data.get('scored_items', []))
     scored_kills = set(data.get('scored_kills', []))
+    apply_terminal_theme(data.get('terminal_color', game_settings.get('terminal_color', 0)))
     game_history.clear()
     add_to_history("Spielstand geladen.")
     add_to_history("")
@@ -3436,6 +3481,7 @@ def ranged_attack(target):
         
         if enemy['health'] <= 0:
             stop_zombie_sounds()
+            play_zombie_dying_sound()
             add_to_history(f"Der {enemy['name']} bricht zusammen!")
             room['enemy'] = None
             player_stats['in_combat'] = False
@@ -3841,6 +3887,7 @@ def handle_melee_qte(success, data):
         
         if enemy['health'] <= 0:
             stop_zombie_sounds()
+            play_zombie_dying_sound()
             add_to_history("")
             if target == 'zombie':
                 add_to_history("Der Zombie zuckt ein letztes Mal.")
@@ -4107,7 +4154,7 @@ def draw_game(current_time):
 
     elif not prolog_shown and not qte_active:
         pulse     = int(160 + 60 * math.sin(current_time * 0.003))
-        hint_col  = (pulse, int(pulse * 0.72), 0)
+        hint_col  = (pulse, pulse, pulse)
         hint_surf = font_text.render("[Drücke ENTER um fortzufahren]", True, hint_col)
         screen.blit(hint_surf, hint_surf.get_rect(center=(w // 2, h - scale(38))))
 
@@ -4133,10 +4180,12 @@ def draw_options(current_time):
     arrow_offset = scale(220)
     
     # Helper: Zeichne eine Option mit < > Pfeilen und Highlight
-    def draw_option_row(label, value, row_y, row_index, left_active=True, right_active=True):
+    # value_color: optionale Überschreibung der Wert-Textfarbe (None = wie text_color)
+    def draw_option_row(label, value, row_y, row_index, left_active=True, right_active=True, value_color=None):
         is_selected = (row_index == options_selected_index)
         text_color = TERMINAL_GREEN if is_selected else LIGHT_GRAY
         arrow_color = TERMINAL_GREEN if is_selected else GRAY
+        actual_value_color = value_color if value_color is not None else text_color
         
         # Label
         label_surf = font_option.render(label, True, text_color)
@@ -4152,7 +4201,7 @@ def draw_options(current_time):
         screen.blit(left_arrow, left_rect)
         
         # Wert
-        value_surf = font_option.render(value, True, text_color)
+        value_surf = font_option.render(value, True, actual_value_color)
         value_rect = value_surf.get_rect(center=(center_x, row_y))
         screen.blit(value_surf, value_rect)
         
@@ -4201,7 +4250,19 @@ def draw_options(current_time):
     can_left_sfx = sfx_pct > 0
     can_right_sfx = sfx_pct < 100
     y = draw_option_row("Effekte:", sfx_val, y, 2, can_left_sfx, can_right_sfx)
-    
+
+    y += scale(20)
+
+    # === TERMINAL-FARBE (Index 3) ===
+    tc_idx   = game_settings['terminal_color']
+    tc_theme = TERMINAL_COLOR_THEMES[tc_idx]
+    tc_name  = tc_theme['name']
+    # Wert in der tatsächlichen Theme-Farbe rendern → sofortige Vorschau
+    tc_preview_color = tc_theme['bright']
+    can_left_tc  = tc_idx > 0
+    can_right_tc = tc_idx < len(TERMINAL_COLOR_THEMES) - 1
+    y = draw_option_row("Terminal-Farbe:", tc_name, y, 3, can_left_tc, can_right_tc, value_color=tc_preview_color)
+
     # Zurück-Button (Position anpassen)
     options_buttons[0].pos = (center_x, screen.get_height() - scale(100))
     
