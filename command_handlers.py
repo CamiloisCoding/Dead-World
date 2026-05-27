@@ -192,6 +192,12 @@ def handle_item_commands(cmd):
         elif item == 'stück papier':
             _h("Ein stück Papier, es hat blut schmieren drauf, teile der Notiz dadurch unlesbar.")
             _h("Sie sind üb....... nirgends ist man sicher. Alles geshah nu........... em Präs......... abor.")
+        elif item == 'Zettel':
+            _h("Der Zettel zerknittert und drecking, manches kaum lesbar")
+            _h("Die Stadt ist komplett überrant, alles voller zombies, jedes haus durchrannt, kau.............rgendwo sicher.")
+            _h("Ich bin hier noch mit .....dren überlebenden, wir sind hier und mehr essen und trinken zu finden aber fast alles ist leer oder aufgebraucht.")
+            _h("Hoffentlich schaffen wir es noch aus dem Laden, scho.............en waren zombies hinter uns her und wir konnten sie gerade so abwimmeln")
+        
         return True
 
     # --- INVENTAR ---

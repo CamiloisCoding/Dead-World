@@ -1310,44 +1310,44 @@ rooms = {
     },
     'walmart_10': {#Walmart
         'name': 'Walmart',
-        'description': 'Nun in der Nordöstlichen ecke des Ladens kannst du sehen das Fast bis zum ende des ganges frei ist',
+        'description': 'Nun in der Nordöstlichen ecke des Ladens, der Westliche gang fast komplett frei, bisschen eng aber man kommt durch',
         'exits': {'süden': 'walmart_11', 'westen': 'walmart_9'},
         'items': [],
         'in_development': True
     },
     'walmart_11': {#Walmart
         'name': 'Walmart',
-        'description': '',
+        'description': 'Der gang führt fast in die Südöstliche ecke des ladens, weiter richtung süden liegen ein paar sachen rum villeicht findet sich dadrin etwas, oder westen wo es aussieht als käme man weiter',
         'exits': {'westen': 'walmart_12.1', 'norden': 'walmart_10', 'süden': 'walmart_12.2'},
         'items': [],
         'in_development': True
     },
     'walmart_12.1': {#Walmart
         'name': 'Walmart',
-        'description': '',
-        'exits': {'süden': 'walmart_13', 'norden': 'walmart_11'},
+        'description': 'Ein weiteres regal liegt auf dem boden, mehr müll verteilt.',
+        'exits': {'süden': 'walmart_13', 'westen': 'walmart_11'},
         'items': [],
         'in_development': True
     },
     'walmart_12.2': {#Walmart
         'name': 'Walmart',
-        'description': '',
+        'description': 'Rucksäcke zerfläddert und verteilt, ein paar nützliche sachen könnten da noch liegen.',
         'exits': {'norden': 'walmart_11'},
-        'items': [],
+        'items': ['Zettel','Messer','Medikit'],
         'in_development': True
     },
     'walmart_13': {#Walmart
         'name': 'Walmart',
-        'description': '',
+        'description': 'Der Durchgang wird immer enger, man passt kaum noch durch, immernoch der selbe modrige geruch zu riechen wie im gesamten laden',
         'exits': {'westen': 'walmart_14', 'norden': 'walmart_12.1'},
         'items': [],
         'in_development': True
     },
     'walmart_14': {#Walmart
         'name': 'Walmart',
-        'description': '',
+        'description': 'Alles abgeblockt, kein weiterer durchgang oder noch platz zum durch quetschen.',
         'exits': {'süden': 'walmart_13'},
-        'items': [],
+        'items': ['Baseball Schläger', 'Pistole'],
         'in_development': True
     },
     'norden_straße': {#Stadt Norden
@@ -1361,49 +1361,49 @@ rooms = {
     },
     'haus_3_eingang': {#Haus3
         'name': 'eingang',
-        'description': '.',
+        'description': 'Die Haustür leich auf, von innen ist es still.',
         'exits': {'westen': 'haus_3_v'},
         'items': [],
         'in_development': True
     },
     'haus_3_v': {#Haus3
         'name': 'Haus 3 vordertür',
-        'description': '.',
+        'description': 'Innen drinnen sind nur getrocknete blut spuren, ein paar schränke hier und da und scherben sind auf dem boden verteilt.',
         'exits': {'osten': 'haus_3_eingang', 'norden': 'wohnzimmer_h3', 'süden': 'bedroom_2', 'westen': 'haus_3_wohnbereich'},
         'items': [],
         'in_development': True
     },
     'haus_3_wohnbereich': {#Haus3
         'name': 'Wohnbereich',
-        'description': '.',
+        'description': 'Der Boden immernoch verdreckt und mit scherben verteilt, von hier aus ist jeder raum erreichbar.',
         'exits': {'osten': 'haus_3_v', 'norden': 'küche_h3', 'süden': 'bathroom_3', 'westen': 'bedroom_3'},
         'items': ['gehstock'],
         'in_development': True
     },
     'wohnzimmer_h3': {#Haus3
         'name': 'Wohnzimmer',
-        'description': '.',
+        'description': 'Das sofa ist noch halb in tackt, der Kamin sieht auch schon sein langer zeit nicht mehr genutzt worden zu sein. Alle schränke auch geplündert, nichts nützliches mehr zu finden.',
         'exits': {'süden': 'haus_3_wohnbereich'},
         'items': [],
         'in_development': True
     },
     'küche_h3': {#Haus3
         'name': 'Küche',
-        'description': '.',
+        'description': 'Vergammeltes essen auf dem Boden, scherben und einen kapputen tisch sowie kaputte stühle.',
         'exits': {'osten': 'haus_3_wohnbereich'},
         'items': ['apfel'],
         'in_development': True
     },
     'bathroom_3': {#Haus3
         'name': 'Badezimmer',
-        'description': '.',
+        'description': 'Die Badewanne kaputt, die dusche eingeschlagen, toilette überlaufen und auch der Medizien schrank leer geplündert.',
         'exits': {'norden': 'haus_3_wohnbereich'},
         'items': [],
         'in_development': True
     },
     'bedroom_3': {#Haus3
         'name': 'Schlafzimmer',
-        'description': '.',
+        'description': 'Im Raum ist alles kaputt oder nicht mehr nutzbar.',
         'exits': {'osten': 'haus_3_wohnbereich'},
         'items': [],
         'in_development': True
@@ -1571,7 +1571,7 @@ rooms = {
         'zombie_spawn': False
     },
     'home_depot_nw': {#Stadt
-        'name': 'Home Depot – Nordwesten',
+        'name': 'Home Depot - Nordwesten',
         'description': 'Nordwestecke des Umrings. Im SÜDEN die Westseite. Im OSTEN die Nordseite.',
         'exits': {'süden': 'home_depot_west', 'osten': 'home_depot_north'},
         'items': [],
