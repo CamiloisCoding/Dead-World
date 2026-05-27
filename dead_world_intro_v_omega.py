@@ -1456,10 +1456,14 @@ rooms = {
     },
     'tower_straße_west': {#Stadt
         'name': 'Tower Straße West',
-        'description': 'Westseite des Tower-Bereichs. Im NORDEN liegt die Skyscraper Straße. Nach SÜDEN führt der Weg zur Tower Straße SW.',
-        'exits': {'norden': 'skyscraper_straße', 'süden': 'tower_straße_sw'},
+        'description': (
+            'Westseite des Tower-Bereichs. Im NORDEN liegt die Skyscraper Straße. '
+            'Nach SÜDEN führt der Weg zur Tower Straße SW. '
+            'Im WESTEN siehst du eine zerbrochene Glastür — der Eingang zu Skyscraper 2.'
+        ),
+        'exits': {'norden': 'skyscraper_straße', 'süden': 'tower_straße_sw', 'westen': 'skyscraper_2_eingang'},
         'items': [],
-        'in_development': True,
+        'in_development': False,
         'spawn_chance': False,
         'zombie_spawn': False
     },
@@ -1492,28 +1496,47 @@ rooms = {
             'Die Lobby des Hochhauses. Ein langer Rezeptionstresen aus Marmor zieht sich quer durch den Raum — '
             'hinter ihm liegt ein umgestürzter Drehstuhl. Zerbrochenes Glas knirscht unter deinen Schritten. '
             'An der Nordwand führt eine Treppe nach oben, aber sie ist mit schweren Stahlträgern verbarrikadiert — '
-            'kein Durchkommen. Im NORDEN liegt das Bürogeschoss. '
+            'kein Durchkommen. '
             'Nach SÜDEN führt die Bresche zurück nach draußen.'
         ),
-        'exits': {'süden': 'skyscraper_1', 'norden': 'skyscraper_1_buero'},
+        'exits': {'süden': 'skyscraper_1'},
         'items': [],
         'in_development': False,
         'spawn_chance': True,
         'zombie_spawn': True
     },
-    'skyscraper_1_buero': {#Skyscraper1
-        'name': 'Skyscraper 1 – Büroetage',
+
+    # ── SKYSCRAPER 2 ────────────────────────────────────────────────
+    'skyscraper_2_eingang': {#Skyscraper2
+        'name': 'Skyscraper 2 – Empfang',
         'description': (
-            'Das Erdgeschoss-Büro ist vollgestellt mit Schreibtischen — so eng, dass man kaum durchkommt. '
-            'Umgekippte Monitore, verstreute Akten und zerschlagene Kaffeebecher überall. '
-            'In einer Ecke liegt ein eingetrocknetes Blutfleck. '
-            'Die Treppe im SÜDEN zurück zur Lobby ist der einzige Weg.'
+            'Du schiebst die zerbrochene Glastür auf und betrittst die Eingangshalle. '
+            'Glasscherben knirschen unter deinen Füßen. '
+            'Ein massiver Empfangstresen aus dunklem Holz steht gegenüber — '
+            'dahinter liegt ein umgekippter Stuhl, Papiere bedecken den Boden. '
+            'An der WESTLICHEN Wand führt eine Tür in den Mitarbeiterbereich. '
+            'Nach OSTEN geht es zurück auf die Straße.'
         ),
-        'exits': {'süden': 'skyscraper_1_lobby'},
-        'items': ['konserven', 'wasser'],
+        'exits': {'osten': 'tower_straße_west', 'westen': 'skyscraper_2_mitarbeiter'},
+        'items': [],
         'in_development': False,
         'spawn_chance': True,
         'zombie_spawn': True
+    },
+    'skyscraper_2_mitarbeiter': {#Skyscraper2
+        'name': 'Skyscraper 2 – Mitarbeiterraum',
+        'description': (
+            'Ein kleiner Mitarbeiterraum hinter dem Empfang. '
+            'In der Ecke steht ein alter Kühlschrank — die Tür steht offen, innen riecht es muffig. '
+            'Ein Schreibtisch mit aufgeklapptem Laptop nimmt die andere Wand ein, '
+            'der Bildschirm schwarz und tot. '
+            'Nach OSTEN geht es zurück zum Empfang.'
+        ),
+        'exits': {'osten': 'skyscraper_2_eingang'},
+        'items': ['dosenfleisch', 'wasser'],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
     },
 
     'skyscraper2_weggabelung_west': {#Stadt
@@ -1961,7 +1984,15 @@ BUILDING_HIERARCHY = {
             'erdgeschoss': [
                 'skyscraper_1',
                 'skyscraper_1_lobby',
-                'skyscraper_1_buero',
+            ],
+        },
+    },
+    'skyscraper2': {
+        'name': 'Skyscraper 2',
+        'floors': {
+            'erdgeschoss': [
+                'skyscraper_2_eingang',
+                'skyscraper_2_mitarbeiter',
             ],
         },
     },
