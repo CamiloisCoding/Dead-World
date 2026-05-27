@@ -252,4 +252,6 @@ ILLOGICAL_RESPONSES = {
 # ========================
 # FILE PATHS
 # ========================
-SAVE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dead_world_save.json')
+import sys as _sys
+_SAVE_DIR = os.path.dirname(_sys.executable) if getattr(_sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+SAVE_FILE = os.path.join(_SAVE_DIR, 'dead_world_save.json')

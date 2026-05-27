@@ -16,7 +16,7 @@ pygame.mixer.init()
 pygame.mixer.set_num_channels(8)
 
 # Musik-System
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
 MENU_MUSIC_PATH = os.path.join(BASE_DIR, "Game_music", "Ambient", "julius_galla__atmosphere-horror-2-loop.wav")
 menu_music_playing = False
 
@@ -2382,8 +2382,7 @@ def _draw_menu_bg(surface):
     w, h = surface.get_width(), surface.get_height()
     if _menu_bg_cache is None or _menu_bg_cache_size != (w, h):
         try:
-            import os as _os
-            bg_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "menu_bg.jpg")
+            bg_path = os.path.join(BASE_DIR, "menu_bg.jpg")
             raw = pygame.image.load(bg_path).convert()
             _menu_bg_cache = pygame.transform.smoothscale(raw, (w, h))
         except Exception:
