@@ -1658,63 +1658,63 @@ rooms = {
     },
     'haus1_Flur': {#Haus1
         'name': 'Haus 1 - Flur',
-        'description': 'Du stehst im Eingangsbereich von Haus 1. Es riecht muffig und der Boden knarzt unter deinen Füßen.',
+        'description': 'Der flur voll mit dreck und kapputen holz sachen sowie verschiedene türen.',
         'exits': {'Norden': 'haus1_vordertür', 'Süden': 'haus1_wohnzimmer', 'Osten': 'haus1_Flur2'},
         'items': [],
         'in_development': True
     },
     'haus1_Flur2': {#Haus1
         'name': 'Haus 1 - Flur2',
-        'description': 'Du stehst im Eingangsbereich von Haus 1. Es riecht muffig und der Boden knarzt unter deinen Füßen.',
+        'description': 'Der Flür führt weiter hinein, ins haus, im Westen ist ein schlafzimmer, im Osten noch mehr flur mit mehreren Türen.Im Westen ist das ende des Flurs aber an der decke ist eine dachbodentür.',
         'exits': {'Süden': 'haus1_dachbodentür', 'Osten': 'haus1_Flur3', 'Westen': 'haus1_schlafzimmer2'},
         'items': [],
         'in_development': True
     },
     'haus1_dachbodentür': {#Haus1
         'name': 'Haus 1 - Dachbodeneingang',
-        'description': 'Du stehst im Eingangsbereich von Haus 1. Es riecht muffig und der Boden knarzt unter deinen Füßen.',
+        'description': 'Nun direkt unter der dachbodentür, du kommst nicht ganz von selbst dran.',
         'exits': {'Norden': 'haus1_Flur', 'Hoch': 'haus1_dachboden'},
         'items': [],
         'in_development': True
     },
     'haus1_dachboden': {#Haus1
         'name': 'Haus 1 - Dachboden',
-        'description': 'Du stehst im Eingangsbereich von Haus 1. Es riecht muffig und der Boden knarzt unter deinen Füßen.',
+        'description': 'Der Dachboden voll mit boxen und alten Möbeln. Alles verstaubt und dreckig.',
         'exits': {'Runter': 'haus1_dachbodentür'},
         'items': [],
         'in_development': True
     },
     'haus1_wohnzimmer': {#Haus1
         'name': 'Haus 1 - Wohnzimmer',
-        'description': 'Du stehst im Eingangsbereich von Haus 1. Es riecht muffig und der Boden knarzt unter deinen Füßen.',
+        'description': 'Kappute gläser, dreckige couch, nicht nützliches in diesem raum.',
         'exits': {'Norden': 'haus1_Flur'},
         'items': [],
         'in_development': True
     },
     'haus1_schlafzimmer2': {#Haus1
         'name': 'Haus 1 - Schlafzimmer 2',
-        'description': 'Du stehst im Eingangsbereich von Haus 1. Es riecht muffig und der Boden knarzt unter deinen Füßen.',
+        'description': 'Das Bett umgeworfen, schrank leer, der Raum schon längst ausgeplündert.',
         'exits': {'Osten': 'haus1_Flur2'},
         'items': [],
         'in_development': True
     },
     'haus1_schlafzimmer': {#Haus1
         'name': 'Haus 1 - Schlafzimmer',
-        'description': 'Du stehst im Eingangsbereich von Haus 1. Es riecht muffig und der Boden knarzt unter deinen Füßen.',
+        'description': 'Alles dreckig und verstaubt, vieles gibt es hier nicht, aber ein kleiner nachtschrank neben dem bett.',
         'exits': {'Süden': 'haus1_Flur3'},
         'items': [],
         'in_development': True
     },
     'haus1_badezimmer': {#Haus1
         'name': 'Haus 1 - Badezimmer',
-        'description': 'Du stehst im Eingangsbereich von Haus 1. Es riecht muffig und der Boden knarzt unter deinen Füßen.',
+        'description': 'Verdreckt mit scherben, alles kaputt, nichts heiles mehr, villeicht findet sich hier noch etwas in einem schrank.',
         'exits': {'Westen': 'haus1_Flur3'},
-        'items': [],
+        'items': ['Medikit'],
         'in_development': True
     },
     'haus1_küche': {#Haus1
         'name': 'Haus 1 - Küche',
-        'description': 'Du stehst im Eingangsbereich von Haus 1. Es riecht muffig und der Boden knarzt unter deinen Füßen.',
+        'description': 'Das ganze besteck leer geräumt, kühlschrank leer, teller kaputt, nichts mehr da im Raum.',
         'exits': {'Norden': 'haus1_Flur3'},
         'items': [],
         'in_development': True
@@ -1756,13 +1756,6 @@ rooms = {
         'in_development': True,
         'spawn_chance': False,
         'zombie_spawn': False
-    },
-    'bedroom_2': {#Haus3
-        'name': 'Schlafzimmer 2',
-        'description': 'Ein kleines Schlafzimmer. Das Bett ist umgeworfen, Kleidung liegt verstreut auf dem Boden.',
-        'exits': {'norden': 'haus_3_v'},
-        'items': [],
-        'in_development': True
     },
 
     # ── GASSE & COFFEESHOP ─────────────────────────────────────────
