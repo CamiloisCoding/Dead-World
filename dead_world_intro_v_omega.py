@@ -13,38 +13,42 @@ import event_handlers
 # Pygame initialisieren
 pygame.init()
 pygame.mixer.init()
+pygame.mixer.set_num_channels(8)
 
 # Musik-System
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MENU_MUSIC_PATH = os.path.join(BASE_DIR, "Game_music", "Ambient", "julius_galla__atmosphere-horror-2-loop.wav")
 menu_music_playing = False
 
-# Zombie Sounds - 4 zufällige Sounds beim Zombie-Auftauchen
+# Dedizierte Mixer-Kanäle: ein Kanal pro Sound-Typ verhindert Überlappung
+# channel.play() stoppt automatisch den vorherigen Sound auf demselben Kanal
+_ZOMBIE_CH = pygame.mixer.Channel(0)
+_GUN_CH    = pygame.mixer.Channel(1)
+_PUNCH_CH  = pygame.mixer.Channel(2)
+
+# Zombie Sounds
 ZOMBIE_SOUND_DIR = os.path.join(BASE_DIR, "Game_music", "Zombie Sounds")
 ZOMBIE_SOUNDS = []
 for _zs_file in sorted(os.listdir(ZOMBIE_SOUND_DIR)):
     if _zs_file.endswith(('.mp3', '.wav', '.ogg')):
-        ZOMBIE_SOUNDS.append(pygame.mixer.Sound(os.path.join(ZOMBIE_SOUND_DIR, _zs_file)))
+        try:
+            ZOMBIE_SOUNDS.append(pygame.mixer.Sound(os.path.join(ZOMBIE_SOUND_DIR, _zs_file)))
+        except Exception:
+            pass
 
 def play_random_zombie_sound():
-    """Spielt einen zufälligen Zombie-Sound ab"""
-    global _current_zombie_sound
+    """Spielt einen zufälligen Zombie-Sound auf dem dedizierten Kanal.
+    Startet automatisch ein neuer Sound stoppt den vorherigen."""
     if ZOMBIE_SOUNDS:
         sound = random.choice(ZOMBIE_SOUNDS)
         sound.set_volume(game_settings.get('sfx_volume', 0.7))
-        sound.play()
-        _current_zombie_sound = sound
-
-_current_zombie_sound = None
+        _ZOMBIE_CH.play(sound)
 
 def stop_zombie_sounds():
-    """Stoppt den aktuell spielenden Zombie-Sound"""
-    global _current_zombie_sound
-    if _current_zombie_sound:
-        _current_zombie_sound.stop()
-        _current_zombie_sound = None
+    """Stoppt den Zombie-Sound sofort (z.B. nach dem Kill)."""
+    _ZOMBIE_CH.stop()
 
-# Gun Sounds - für Schusswaffen
+# Gun Sounds
 GUN_SOUND_DIR = os.path.join(BASE_DIR, "Game_music", "Gun Sounds")
 GUN_SOUNDS = []
 for _gs_file in sorted(os.listdir(GUN_SOUND_DIR)):
@@ -54,7 +58,7 @@ for _gs_file in sorted(os.listdir(GUN_SOUND_DIR)):
         except Exception:
             pass
 
-# Punch/Melee Sounds - für Nahkampf
+# Punch/Melee Sounds
 PUNCH_SOUND_DIR = os.path.join(BASE_DIR, "Game_music", "Punch_Sounds")
 PUNCH_SOUNDS = []
 for _ps_file in sorted(os.listdir(PUNCH_SOUND_DIR)):
@@ -64,36 +68,24 @@ for _ps_file in sorted(os.listdir(PUNCH_SOUND_DIR)):
         except Exception:
             pass
 
-_current_gun_sound = None
-_current_punch_sound = None
-
 def play_random_gun_sound():
-    """Spielt einen zufälligen Schuss-Sound ab"""
-    global _current_gun_sound
+    """Spielt einen zufälligen Schuss-Sound auf dem dedizierten Kanal."""
     if GUN_SOUNDS:
         sound = random.choice(GUN_SOUNDS)
         sound.set_volume(game_settings.get('sfx_volume', 0.7))
-        sound.play()
-        _current_gun_sound = sound
+        _GUN_CH.play(sound)
 
 def play_random_punch_sound():
-    """Spielt einen zufälligen Nahkampf-Sound ab"""
-    global _current_punch_sound
+    """Spielt einen zufälligen Nahkampf-Sound auf dem dedizierten Kanal."""
     if PUNCH_SOUNDS:
         sound = random.choice(PUNCH_SOUNDS)
         sound.set_volume(game_settings.get('sfx_volume', 0.7))
-        sound.play()
-        _current_punch_sound = sound
+        _PUNCH_CH.play(sound)
 
 def stop_combat_sounds():
-    """Stoppt alle Kampf-Sounds"""
-    global _current_gun_sound, _current_punch_sound
-    if _current_gun_sound:
-        _current_gun_sound.stop()
-        _current_gun_sound = None
-    if _current_punch_sound:
-        _current_punch_sound.stop()
-        _current_punch_sound = None
+    """Stoppt alle Kampf-Sounds sofort."""
+    _GUN_CH.stop()
+    _PUNCH_CH.stop()
 
 # Scaling-Funktionen und Font-Cache in render_utils.py
 current_resolution_index = 4  # Standard: Sehr Hoch (1920x1080)
@@ -2809,6 +2801,10 @@ def move_direction(direction):
             next_room['enemy'] = 'zombie'
             next_room['zombie_spawn'] = True
     
+    # Zombie-Sound beim Raumwechsel ausblenden (auch wenn Zombie noch lebt)
+    _ZOMBIE_CH.fadeout(800)
+    stop_combat_sounds()
+
     # Move player
     current_room = target
     visited_rooms.add(current_room)
@@ -2850,6 +2846,10 @@ def trigger_two_year_timeskip():
     add_to_history("Geweckt vom geräusch eines Zombies der in der Nacht rein kam.")
     add_to_history("")
     
+    # Sounds stoppen beim Teleport
+    stop_zombie_sounds()
+    stop_combat_sounds()
+
     # Teleportiere zum Lagerraum
     current_room = 'lagerraum'
     visited_rooms.add('lagerraum')  # Neuen Raum als besucht markieren
@@ -3467,6 +3467,8 @@ def enemy_counterattack(enemy):
     add_to_history(get_damage_reaction(damage, player_stats['health']))
     
     if player_stats['health'] <= 0:
+        stop_zombie_sounds()
+        stop_combat_sounds()
         add_to_history("")
         add_to_history("=== DU BIST GESTORBEN ===")
         # Reset Player Stats
@@ -3874,6 +3876,8 @@ def handle_melee_qte(success, data):
             add_to_history(get_damage_reaction(damage, player_stats['health']))
             
             if player_stats['health'] <= 0:
+                stop_zombie_sounds()
+                stop_combat_sounds()
                 add_to_history("")
                 add_to_history("=== DU BIST GESTORBEN ===")
                 # Reset Player Stats
@@ -3908,6 +3912,8 @@ def handle_melee_qte(success, data):
         add_to_history(get_damage_reaction(damage, player_stats['health']))
         
         if player_stats['health'] <= 0:
+            stop_zombie_sounds()
+            stop_combat_sounds()
             add_to_history("")
             add_to_history("=== DU BIST GESTORBEN ===")
             # Reset Player Stats
@@ -3955,6 +3961,8 @@ def handle_dodge_qte(success):
         add_to_history(get_damage_reaction(damage, player_stats['health']))
         
         if player_stats['health'] <= 0:
+            stop_zombie_sounds()
+            stop_combat_sounds()
             add_to_history("")
             add_to_history("=== DU BIST GESTORBEN ===")
             # Reset Player Stats
