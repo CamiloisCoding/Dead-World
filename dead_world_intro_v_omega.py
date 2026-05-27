@@ -20,6 +20,30 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MENU_MUSIC_PATH = os.path.join(BASE_DIR, "Game_music", "Ambient", "julius_galla__atmosphere-horror-2-loop.wav")
 menu_music_playing = False
 
+# === Dynamisches Ingame-Musik-System ===
+_AMBIENT_MUSIC_DIR = os.path.join(BASE_DIR, "Game_music", "Ambient")
+_COMBAT_MUSIC_DIR  = os.path.join(BASE_DIR, "Game_music", "Combat")
+
+_AMBIENT_TRACKS: list = []
+_COMBAT_TRACKS:  list = []
+_MIN_MUSIC_SIZE  = 400 * 1024   # Dateien < 400 KB sind Sound-Effekte, keine Musik
+
+for _mf in sorted(os.listdir(_AMBIENT_MUSIC_DIR)):
+    if _mf.endswith(('.mp3', '.wav', '.ogg')):
+        _fp = os.path.join(_AMBIENT_MUSIC_DIR, _mf)
+        if _fp != MENU_MUSIC_PATH and os.path.getsize(_fp) >= _MIN_MUSIC_SIZE:
+            _AMBIENT_TRACKS.append(_fp)
+
+if os.path.isdir(_COMBAT_MUSIC_DIR):
+    for _mf in sorted(os.listdir(_COMBAT_MUSIC_DIR)):
+        if _mf.endswith(('.mp3', '.wav', '.ogg')):
+            _fp = os.path.join(_COMBAT_MUSIC_DIR, _mf)
+            if os.path.getsize(_fp) >= _MIN_MUSIC_SIZE:
+                _COMBAT_TRACKS.append(_fp)
+
+_music_state      = 'none'   # 'none' | 'menu' | 'ambient' | 'combat'
+_last_ambient_idx = -1       # Index des zuletzt gespielten Ambient-Tracks
+
 # Dedizierte Mixer-Kanäle: ein Kanal pro Sound-Typ verhindert Überlappung
 # channel.play() stoppt automatisch den vorherigen Sound auf demselben Kanal
 _ZOMBIE_CH     = pygame.mixer.Channel(0)
@@ -2521,10 +2545,9 @@ def start_game():
     gasse_ende_untersucht = False
     apply_coffeeshop_tür_state()
 
-    # Menü-Musik ausblenden
-    pygame.mixer.music.fadeout(800)
-    menu_music_playing = False
-    
+    # Menü-Musik stoppen, Ambient-Musik starten
+    start_ambient_music()
+
     # Prolog in Zeilen aufteilen
     prolog_lines = [line for line in PROLOG_TEXT.split('\n') if line.strip() or line == '']
     
@@ -2560,10 +2583,9 @@ def load_game_from_menu():
     pending_ambiguity = None
     game_history = []
     
-    # Menü-Musik ausblenden
-    pygame.mixer.music.fadeout(800)
-    menu_music_playing = False
-    
+    # Menü-Musik stoppen, Ambient-Musik starten
+    start_ambient_music()
+
     # Spielstand laden (gleiche Logik wie restore_game)
     current_room = data['current_room']
     player_inventory.clear()
@@ -2646,15 +2668,70 @@ def pause_save_game():
 
 def _start_menu_music():
     """Startet die Menü-Musik falls nicht bereits aktiv"""
-    global menu_music_playing
+    global menu_music_playing, _music_state
     if not menu_music_playing and os.path.exists(MENU_MUSIC_PATH):
         try:
+            pygame.mixer.music.stop()
             pygame.mixer.music.load(MENU_MUSIC_PATH)
             pygame.mixer.music.set_volume(game_settings['music_volume'])
-            pygame.mixer.music.play(-1)  # Loop endlos
+            pygame.mixer.music.play(-1)
             menu_music_playing = True
+            _music_state = 'menu'
         except Exception:
-            pass  # Kein Crash wenn Musik nicht geladen werden kann
+            pass
+
+
+def _play_ambient_track():
+    """Wählt einen zufälligen Ambient-Track (nicht denselben wie zuvor) und spielt ihn."""
+    global _music_state, _last_ambient_idx
+    if not _AMBIENT_TRACKS:
+        return
+    if len(_AMBIENT_TRACKS) > 1:
+        indices = [i for i in range(len(_AMBIENT_TRACKS)) if i != _last_ambient_idx]
+    else:
+        indices = [0]
+    idx = random.choice(indices)
+    _last_ambient_idx = idx
+    track = _AMBIENT_TRACKS[idx]
+    try:
+        pygame.mixer.music.stop()
+        pygame.mixer.music.load(track)
+        pygame.mixer.music.set_volume(game_settings.get('music_volume', 0.15))
+        pygame.mixer.music.play(-1)
+        _music_state = 'ambient'
+    except Exception:
+        _music_state = 'none'
+
+
+def start_ambient_music():
+    """Startet einen zufälligen Ambient-Track für die Erkundungsphase."""
+    global menu_music_playing
+    menu_music_playing = False
+    _play_ambient_track()
+
+
+def start_combat_music():
+    """Wechselt sofort zu einem Kampf-Track (nur wenn noch nicht im Kampf-Modus)."""
+    global _music_state
+    if _music_state == 'combat' or not _COMBAT_TRACKS:
+        return
+    track = random.choice(_COMBAT_TRACKS)
+    try:
+        pygame.mixer.music.stop()
+        pygame.mixer.music.load(track)
+        pygame.mixer.music.set_volume(game_settings.get('music_volume', 0.15))
+        pygame.mixer.music.play(-1)
+        _music_state = 'combat'
+    except Exception:
+        _music_state = 'none'
+
+
+def stop_combat_resume_ambient():
+    """Beendet den Kampf-Track und wechselt zurück zu Ambient-Musik."""
+    global _music_state
+    if _music_state != 'combat':
+        return
+    _play_ambient_track()
 
 def change_resolution(direction):
     """Ändert die Auflösung (direction: -1 für niedriger, +1 für höher)"""
@@ -2847,6 +2924,8 @@ def move_direction(direction):
     # Zombie-Sound beim Raumwechsel ausblenden (auch wenn Zombie noch lebt)
     _ZOMBIE_CH.fadeout(800)
     stop_combat_sounds()
+    # Kampfmusik → Ambient wenn Spieler den Kampf flieht oder Zombie ignoriert
+    stop_combat_resume_ambient()
 
     # Move player
     current_room = target
@@ -2892,6 +2971,7 @@ def trigger_two_year_timeskip():
     # Sounds stoppen beim Teleport
     stop_zombie_sounds()
     stop_combat_sounds()
+    stop_combat_resume_ambient()
 
     # Teleportiere zum Lagerraum
     current_room = 'lagerraum'
@@ -2917,6 +2997,8 @@ def describe_room():
         add_to_history("Tentakel zucken aus seinem Mund.")
         add_to_history("")
         room['first_visit'] = False
+        player_stats['in_combat'] = True
+        start_combat_music()
         return
     
     # View Mode Logik
@@ -2944,7 +3026,6 @@ def describe_room():
     if current_room == 'wohnbereich' and room.get('zombie_spawn'):
         last_kill = zombie_kill_times.get(current_room, 0)
         if time.time() - last_kill >= ZOMBIE_RESPAWN_COOLDOWN:
-            # Neuer Zombie im Wohnbereich - Health zurücksetzen
             enemies['zombie']['health'] = enemies['zombie']['max_health']
             play_random_zombie_sound()
             add_to_history("")
@@ -2952,6 +3033,8 @@ def describe_room():
             add_to_history("Tentakel zucken aus seinem Mund.")
             add_to_history("")
             room['zombie_spawn'] = False
+            player_stats['in_combat'] = True
+            start_combat_music()
             return
         else:
             room['zombie_spawn'] = False
@@ -2959,7 +3042,6 @@ def describe_room():
     if current_room == 'walmart_5' and room.get('zombie_spawn'):
         last_kill = zombie_kill_times.get(current_room, 0)
         if time.time() - last_kill >= ZOMBIE_RESPAWN_COOLDOWN:
-            # Neuer Zombie im Walmart 5 - Health zurücksetzen
             enemies['zombie']['health'] = enemies['zombie']['max_health']
             play_random_zombie_sound()
             add_to_history("")
@@ -2967,6 +3049,8 @@ def describe_room():
             add_to_history("Tentakel zucken aus seinem Mund.")
             add_to_history("")
             room['zombie_spawn'] = False
+            player_stats['in_combat'] = True
+            start_combat_music()
             return
         else:
             room['zombie_spawn'] = False
@@ -2974,7 +3058,6 @@ def describe_room():
     if current_room == 'walmart_9' and room.get('zombie_spawn'):
         last_kill = zombie_kill_times.get(current_room, 0)
         if time.time() - last_kill >= ZOMBIE_RESPAWN_COOLDOWN:
-            # Neuer Zombie im Walmart 9 - Health zurücksetzen
             enemies['zombie']['health'] = enemies['zombie']['max_health']
             play_random_zombie_sound()
             add_to_history("")
@@ -2982,6 +3065,8 @@ def describe_room():
             add_to_history("Tentakel zucken aus seinem Mund.")
             add_to_history("")
             room['zombie_spawn'] = False
+            player_stats['in_combat'] = True
+            start_combat_music()
             return
         else:
             room['zombie_spawn'] = False
@@ -2996,6 +3081,7 @@ def describe_room():
             add_to_history(f">>> {enemy['name']} ist hier! <<<")
             add_to_history(f"Zustand: {get_enemy_health_description(enemy['health'], enemy['max_health'])}")
             player_stats['in_combat'] = True
+            start_combat_music()
     
     add_to_history("")
 
@@ -3485,6 +3571,7 @@ def ranged_attack(target):
             add_to_history(f"Der {enemy['name']} bricht zusammen!")
             room['enemy'] = None
             player_stats['in_combat'] = False
+            stop_combat_resume_ambient()
             zombie_kill_times[current_room] = time.time()  # Respawn-Cooldown starten
             add_score('zombie_kill', context=current_room)
             grant_enemy_loot_on_death(enemy_in_room)
@@ -3901,6 +3988,7 @@ def handle_melee_qte(success, data):
             # Gegner besiegt - entferne aus Raum
             room['enemy'] = None
             player_stats['in_combat'] = False
+            stop_combat_resume_ambient()
             zombie_kill_times[current_room] = time.time()  # Respawn-Cooldown starten
             add_score('zombie_kill', context=current_room)
             grant_enemy_loot_on_death(target)
