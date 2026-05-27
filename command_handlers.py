@@ -51,6 +51,7 @@ def handle_help(cmd):
     _h("  h, hoch - Gehe nach Oben")
     _h("  gehe [richtung] - Alternative Schreibweise")
     _h("  schaue, look - Raum beschreiben")
+    _h("  untersuche [objekt] - Raum/Objekt genau untersuchen")
     _h("")
     _h("Gegenstände:")
     _h("  nimm [item] - Item aufheben")
@@ -822,6 +823,29 @@ def handle_interaction_commands(cmd):
         _h("")
         return True
 
+    # ------------------------------------------------------------
+    # COFFEESHOP: Tür mit Schlüssel öffnen
+    # ------------------------------------------------------------
+    if _game.current_room == 'gasse_ende':
+        is_open_cmd = _has_any(cmd, 'öffne', 'oeffne', 'auf', 'nutze', 'benutze', 'unlock')
+        is_door_target = _has_any(cmd, 'tür', 'tur', 'coffeeshop', 'coffee', 'schlüssel', 'schlussel')
+        if is_open_cmd and is_door_target:
+            if _game.coffeeshop_tür_auf:
+                _h("Die Tür ist bereits offen.")
+                _h("")
+                return True
+            if 'coffeeshop_schlüssel' not in _game.player_inventory:
+                _h("Die Tür ist fest verschlossen. Du brauchst wohl einen passenden Schlüssel.")
+                _h("")
+                return True
+            _game.coffeeshop_tür_auf = True
+            _game.unlock_transition('coffeeshop_tür')
+            _h("Du steckst den Schlüssel ins Schloss.")
+            _h("Ein leises Klicken — die schwere Holztür schwingt auf.")
+            _h("Dahinter liegt ein verlassener Coffeeshop.")
+            _h("")
+            return True
+
     return False
 
 # ========================
@@ -871,6 +895,77 @@ def handle_container_commands(cmd):
         return True
 
     return False
+
+
+# ========================
+# EXAMINE COMMAND
+# ========================
+def handle_examine_command(cmd):
+    """Handles: untersuche / untersuchen / u [objekt]
+    Durchsucht den aktuellen Raum nach versteckten Details oder Items.
+    """
+    words = cmd.split()
+    verb = words[0] if words else ''
+
+    if verb not in ('untersuche', 'untersuchen', 'u'):
+        return False
+
+    obj = ' '.join(words[1:]).strip() if len(words) > 1 else ''
+    room_key = _game.current_room
+
+    # ── GASSE ENDE: Mülltonne / Boden / allgemein ──────────────────
+    if room_key == 'gasse_ende':
+        if _game.gasse_ende_untersucht:
+            if obj:
+                _h(f"Du hast den Bereich bereits gründlich untersucht. Außer dem Schlüssel findest du nichts mehr.")
+            else:
+                _h("Du hast das Gassenende bereits gründlich untersucht.")
+            _h("")
+            return True
+        # Erster Untersuchungsversuch → Schlüssel enthüllen
+        _game.gasse_ende_untersucht = True
+        room = _game.rooms.get('gasse_ende', {})
+        if 'coffeeshop_schlüssel' not in room.get('items', []):
+            room.setdefault('items', []).append('coffeeshop_schlüssel')
+        _h("Du schaust dich im Gassenende genauer um.")
+        _h("")
+        _h("Du kippst die umgestürzte Mülltonne zur Seite.")
+        _h("Darunter, halb im Dreck vergraben, liegt ein kleiner Schlüssel.")
+        _h("An der Schlaufe hängt ein verblasster Anhänger — eine Kaffeetasse.")
+        _h("")
+        _h("Du hast gefunden: Coffeeshop-Schlüssel")
+        _h("")
+        return True
+
+    # ── ALLGEMEINE UNTERSUCHUNG (andere Räume) ──────────────────────
+    room = _game.rooms.get(room_key, {})
+    room_name = room.get('name', room_key)
+
+    if obj:
+        # Spieler untersucht ein bestimmtes Objekt
+        all_items = set(room.get('items', [])) | set(_game.player_inventory)
+        if obj in all_items:
+            idef = _game.ITEM_DEFS.get(obj)
+            if idef:
+                _h(f"Du untersuchst {idef.name} genauer.")
+                _h(idef.description)
+                _h("")
+                return True
+        _h(f"Hier gibt es kein '{obj}' zum Untersuchen.")
+        _h("")
+        return True
+
+    # Allgemeine Raumuntersuchung — generische Reaktion
+    items_here = room.get('items', [])
+    _h(f"Du schaust dich in '{room_name}' genau um.")
+    _h("")
+    if items_here:
+        sichtbare = [_game.get_item_name(i) for i in items_here]
+        _h("Du bemerkst folgende Gegenstände: " + ", ".join(sichtbare) + ".")
+    else:
+        _h("Du durchsuchst den Raum gründlich. Nichts Besonderes fällt dir auf.")
+    _h("")
+    return True
 
 
 # ========================

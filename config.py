@@ -9,10 +9,10 @@ import os
 # ========================
 # SCREEN & DISPLAY
 # ========================
-WIDTH, HEIGHT = 1680, 1050
+WIDTH, HEIGHT = 1920, 1080
 FPS = 60
-REFERENCE_WIDTH = 1680    
-REFERENCE_HEIGHT = 1050
+REFERENCE_WIDTH = 1920    
+REFERENCE_HEIGHT = 1080
 
 # Resolution Presets (Name, Breite, Höhe)
 RESOLUTION_PRESETS = [
@@ -158,6 +158,7 @@ KNOWN_VERBS = {
     'restore', 'laden', 'score', 'punkte', 'zeit', 'diagnose', 'd',
     'schieben', 'schieb', 'brech', 'zerhacke', '?', 'mapedit',
     'nutze', 'benutze',
+    'untersuche', 'untersuchen', 'u',
 }
 
 VERBS_NEED_OBJECT = {
