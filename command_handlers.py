@@ -943,6 +943,28 @@ def handle_examine_command(cmd):
         _h("")
         return True
 
+    # ── SKYSCRAPER 1 LOBBY: Rezeptionstresen / Axt ─────────────────
+    if room_key == 'skyscraper_1_lobby':
+        if _game.skyscraper1_rezeption_untersucht:
+            if obj:
+                _h("Du hast die Lobby bereits gründlich durchsucht. Außer der Axt gibt es nichts mehr zu finden.")
+            else:
+                _h("Du hast die Lobby bereits gründlich untersucht.")
+            _h("")
+            return True
+        _game.skyscraper1_rezeption_untersucht = True
+        room = _game.rooms.get('skyscraper_1_lobby', {})
+        if 'axt' not in room.get('items', []):
+            room.setdefault('items', []).append('axt')
+        _h("Du leuchtest hinter den Rezeptionstresen.")
+        _h("")
+        _h("Unter dem umgekippten Drehstuhl liegt eine Axt —")
+        _h("das Blatt noch scharf, der Stiel mit getrocknetem Blut bedeckt.")
+        _h("")
+        _h("Du hast gefunden: Axt")
+        _h("")
+        return True
+
     # ── ALLGEMEINE UNTERSUCHUNG (andere Räume) ──────────────────────
     room = _game.rooms.get(room_key, {})
     room_name = room.get('name', room_key)

@@ -178,6 +178,8 @@ numpad_nutzen = False
 #Coffeeshop Gasse
 coffeeshop_tür_auf = False
 gasse_ende_untersucht = False
+#Skyscraper 1
+skyscraper1_rezeption_untersucht = False
 
 # Key-Repeat für Cursor-Tasten
 delete_held = False
@@ -1470,15 +1472,50 @@ rooms = {
         'spawn_chance': False,
         'zombie_spawn': False
     },
-    'skyscraper_1': {#Stadt
+    'skyscraper_1': {#Skyscraper1
         'name': 'Skyscraper 1 – Eingestürzte Wand',
-        'description': 'Durch eine große Bresche in der Außenmauer bist du ins Erdgeschoss des ersten Hochhauses eingedrungen. Betonbrocken und Staub bedecken den Boden. Nach SÜDOSTEN führt der Weg zurück auf die Skyscraper Straße.',
-        'exits': {'südosten': 'skyscraper_straße'},
+        'description': (
+            'Durch eine große Bresche in der Außenmauer bist du ins Erdgeschoss eingedrungen. '
+            'Betonbrocken und Staub bedecken den Boden. Eisenstangen ragen aus dem Mauerwerk. '
+            'Im Inneren liegt die Lobby des Hochhauses. Nach NORDEN geht es hinein. '
+            'Nach SÜDOSTEN führt der Weg zurück auf die Skyscraper Straße.'
+        ),
+        'exits': {'südosten': 'skyscraper_straße', 'norden': 'skyscraper_1_lobby'},
         'items': [],
-        'in_development': True,
+        'in_development': False,
         'spawn_chance': False,
         'zombie_spawn': False
     },
+    'skyscraper_1_lobby': {#Skyscraper1
+        'name': 'Skyscraper 1 – Lobby',
+        'description': (
+            'Die Lobby des Hochhauses. Ein langer Rezeptionstresen aus Marmor zieht sich quer durch den Raum — '
+            'hinter ihm liegt ein umgestürzter Drehstuhl. Zerbrochenes Glas knirscht unter deinen Schritten. '
+            'An der Nordwand führt eine Treppe nach oben, aber sie ist mit schweren Stahlträgern verbarrikadiert — '
+            'kein Durchkommen. Im NORDEN liegt das Bürogeschoss. '
+            'Nach SÜDEN führt die Bresche zurück nach draußen.'
+        ),
+        'exits': {'süden': 'skyscraper_1', 'norden': 'skyscraper_1_buero'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': True,
+        'zombie_spawn': True
+    },
+    'skyscraper_1_buero': {#Skyscraper1
+        'name': 'Skyscraper 1 – Büroetage',
+        'description': (
+            'Das Erdgeschoss-Büro ist vollgestellt mit Schreibtischen — so eng, dass man kaum durchkommt. '
+            'Umgekippte Monitore, verstreute Akten und zerschlagene Kaffeebecher überall. '
+            'In einer Ecke liegt ein eingetrocknetes Blutfleck. '
+            'Die Treppe im SÜDEN zurück zur Lobby ist der einzige Weg.'
+        ),
+        'exits': {'süden': 'skyscraper_1_lobby'},
+        'items': ['konserven', 'wasser'],
+        'in_development': False,
+        'spawn_chance': True,
+        'zombie_spawn': True
+    },
+
     'skyscraper2_weggabelung_west': {#Stadt
         'name': 'Skyscraper 2 – westliche Weggabelung',
         'description': 'Vor einem zweiten Hochhaus teilt sich der Weg. Im NORDEN die Skyscraper Weggabelung. Nach WESTEN die Feuerwehrstraße.',
@@ -1923,6 +1960,16 @@ BUILDING_HIERARCHY = {
         'name': 'Coffeeshop',
         'floors': {
             'main': ['gasse', 'gasse_ende', 'coffeeshop'],
+        },
+    },
+    'skyscraper1': {
+        'name': 'Skyscraper 1',
+        'floors': {
+            'erdgeschoss': [
+                'skyscraper_1',
+                'skyscraper_1_lobby',
+                'skyscraper_1_buero',
+            ],
         },
     },
 }
@@ -2434,6 +2481,7 @@ def load_game_from_menu():
     global haus1_dachbodentür_auf, haus1_dachboden_box_geschoben
     global nachtschrank_auf, safe_auf_haus1, safe_durchsucht_haus1
     global krankenhaus_schrank_geschoben, numpad_nutzen, coffeeshop_tür_auf, gasse_ende_untersucht
+    global skyscraper1_rezeption_untersucht
     global scored_items, scored_kills, pending_ambiguity, game_history
     
     if not os.path.exists(SAVE_FILE):
@@ -2488,6 +2536,7 @@ def load_game_from_menu():
     numpad_nutzen = data.get('numpad_nutzen', False)
     coffeeshop_tür_auf = data.get('coffeeshop_tür_auf', False)
     gasse_ende_untersucht = data.get('gasse_ende_untersucht', False)
+    skyscraper1_rezeption_untersucht = data.get('skyscraper1_rezeption_untersucht', False)
     # Puzzle-Übergänge anhand der geladenen Flags rekonstruieren.
     apply_bibliothek_bookshelf_state()
     apply_krankenhaus_geheimlabor_state()
@@ -2950,6 +2999,7 @@ def save_game():
         'numpad_nutzen': numpad_nutzen,
         'coffeeshop_tür_auf': coffeeshop_tür_auf,
         'gasse_ende_untersucht': gasse_ende_untersucht,
+        'skyscraper1_rezeption_untersucht': skyscraper1_rezeption_untersucht,
         'item_charges': {ik: idef.charge for ik, idef in ITEM_DEFS.items() if idef.max_charge >= 0},
         'scored_items': list(scored_items),
         'scored_kills': list(scored_kills),
@@ -2972,6 +3022,7 @@ def restore_game():
     global haus1_dachbodentür_auf, haus1_dachboden_box_geschoben
     global nachtschrank_auf, safe_auf_haus1, safe_durchsucht_haus1
     global krankenhaus_schrank_geschoben, numpad_nutzen, coffeeshop_tür_auf, gasse_ende_untersucht
+    global skyscraper1_rezeption_untersucht
     global scored_items, scored_kills
     try:
         with open(SAVE_FILE, 'r', encoding='utf-8') as f:
@@ -3014,6 +3065,7 @@ def restore_game():
     numpad_nutzen = data.get('numpad_nutzen', False)
     coffeeshop_tür_auf = data.get('coffeeshop_tür_auf', False)
     gasse_ende_untersucht = data.get('gasse_ende_untersucht', False)
+    skyscraper1_rezeption_untersucht = data.get('skyscraper1_rezeption_untersucht', False)
     # Puzzle-Übergänge anhand der geladenen Flags rekonstruieren.
     apply_bibliothek_bookshelf_state()
     apply_krankenhaus_geheimlabor_state()
@@ -3196,7 +3248,8 @@ def process_command(command):
     # Lange IDs (z.B. keycard_armband_lvl1/2/3) teilen die ersten 9 Zeichen („keycard_a“).
     # Ohne zusätzliche Logik bleibt der Token dann kein gültiger Schlüssel — „nimm“ schlägt fehl.
     raw_words = cmd.split()
-    words = [w[:9] for w in raw_words]
+    # KNOWN_VERBS nie kürzen – Befehle wie „untersuchen" (11 Zeichen) müssen erhalten bleiben.
+    words = [w if w in KNOWN_VERBS else w[:9] for w in raw_words]
     room = rooms.get(current_room, {})
     room_items = room.get('items', [])
     all_keys = set(ITEM_DEFS.keys()) | set(weapons.keys()) | set(room_items) | set(player_inventory)
@@ -3257,6 +3310,7 @@ def process_command(command):
     if command_handlers.handle_help(cmd): return
     if command_handlers.handle_movement(cmd): return
     if command_handlers.handle_item_commands(cmd): return
+    if command_handlers.handle_examine_command(cmd): return
     if command_handlers.handle_look_map(cmd): return
     if command_handlers.handle_combat_commands(cmd): return
     if command_handlers.handle_container_commands(cmd): return
