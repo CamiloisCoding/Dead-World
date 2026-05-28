@@ -996,7 +996,7 @@ rooms = {
     },
     'gl_server_raum': {#Geheimlabor
         'name': 'Geheimlabor - Server Raum',
-        'description': 'Eine Menge an Servern aufgestellt mit ein Paar PCs Im Raum drinne.',
+        'description': 'Eine Menge an Servern aufgestellt mit einem PC in der Ecke.',
         'exits': {'Osten': 'gl_server_flur'},
         'items': [],
         'in_development': False

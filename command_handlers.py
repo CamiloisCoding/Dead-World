@@ -203,7 +203,8 @@ def handle_item_commands(cmd):
             _h("8 Neue Patienten ......... wut, agression..... mit 3 bissspuren........,1 patient nicht ansprechbar.......")
             _h("Viel mehr kannst du nicht entziffern.")
         elif item == 'Akten': 
-            _h("In den Akten stehen die untersuchungen von ")
+            _h("In den Akten stehen die untersuchungen von Viralen infektionen und deren auswirkung auf menschen.")
+            _h("Sowie auch mutationen die durch die infektionen entstehen und wie man sie ausnutzen kann zur gezwungenen evolution der Menschheit.")
         return True
 
     # --- INVENTAR ---
