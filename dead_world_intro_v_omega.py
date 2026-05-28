@@ -3498,6 +3498,42 @@ def equip_weapon(weapon_key):
     
     add_to_history("")
 
+def enemy_target_matches(t, enemy_key, enemy):
+    """Tolerante Ziel-Erkennung für Kampfbefehle.
+
+    Akzeptiert:
+    - exakten Schlüssel (z.B. 'geheimlabor_boss')
+    - Vollnamen (z.B. 'mutierter labor leiter')
+    - einzelne Namens-Wörter (z.B. 'leiter', 'labor', 'mutierter')
+    - durch Bindestrich verbundene Teilnamen (z.B. 'labor-leiter')
+    - durch die 9-Zeichen-Kürzung entstandene Präfixe (z.B. 'labor-lei')
+    """
+    t = t.lower().strip()
+    if not t:
+        return False
+    full = enemy['name'].lower().replace('-', ' ')
+    name_words = full.split()
+    all_tokens = [enemy_key] + name_words
+
+    if t == enemy_key or t == full or t in name_words:
+        return True
+
+    # Zerlege Ziel in Tokens (Leerzeichen und Bindestriche als Trenner)
+    target_tokens = [tok for tok in t.replace('-', ' ').split() if tok]
+    if not target_tokens:
+        return False
+
+    def _token_ok(tok):
+        if tok in all_tokens:
+            return True
+        # Präfix-Match: mindestens 3 Zeichen (fängt 9-Zeichen-Kürzungen ab)
+        if len(tok) >= 3 and any(w.startswith(tok) for w in all_tokens):
+            return True
+        return False
+
+    return all(_token_ok(tok) for tok in target_tokens)
+
+
 def ranged_attack(target):
     """Fernkampf mit Schusswaffen"""
     if not player_stats['equipped_weapon']:
@@ -3534,13 +3570,11 @@ def ranged_attack(target):
         return
     
     # Ziel-Validierung: target muss zum Gegner passen
-    t = target.lower().strip()
-    enemy_words = [enemy_in_room] + enemy['name'].lower().replace('-', ' ').split()
-    if t != enemy_in_room and t not in enemy_words:
+    if not enemy_target_matches(target, enemy_in_room, enemy):
         add_to_history(f"Hier ist kein '{target}'. Hier ist: {enemy['name']}")
         add_to_history("")
         return
-    
+
     # Schussberechnung
     add_to_history(f"Du legst die {weapon['name']} an...")
     
@@ -3784,13 +3818,11 @@ def attack_with_weapon(target, weapon_name):
         return
     
     # Ziel-Validierung: target muss zum Gegner passen
-    t = target.lower().strip()
-    enemy_words = [enemy_in_room] + enemy['name'].lower().replace('-', ' ').split()
-    if t != enemy_in_room and t not in enemy_words:
+    if not enemy_target_matches(target, enemy_in_room, enemy):
         add_to_history(f"Hier ist kein '{target}'. Hier ist: {enemy['name']}")
         add_to_history("")
         return
-    
+
     # Prüfe ob die Waffe existiert
     if weapon_key not in weapons:
         add_to_history(f"'{weapon_name}' ist keine bekannte Waffe.")
@@ -3838,13 +3870,11 @@ def unarmed_attack(target):
     # Ziel-Validierung: target muss zum Gegner passen
     enemy = enemies.get(enemy_in_room)
     if enemy:
-        t = target.lower().strip()
-        enemy_words = [enemy_in_room] + enemy['name'].lower().replace('-', ' ').split()
-        if t != enemy_in_room and t not in enemy_words:
+        if not enemy_target_matches(target, enemy_in_room, enemy):
             add_to_history(f"Hier ist kein '{target}'. Hier ist: {enemy['name']}")
             add_to_history("")
             return
-    
+
     # Spezialfall: Zombie mit Feuerlöscher (im Inventar oder Raum)
     if current_room == 'start' and enemy_in_room == 'zombie':
         if 'feuerlöscher' in player_inventory:

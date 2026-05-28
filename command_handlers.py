@@ -389,9 +389,7 @@ def handle_combat_commands(cmd):
                         _h("Es gibt hier nichts zum Angreifen!")
                         _h("")
                         return True
-                    t = target.lower().strip()
-                    enemy_words = [enemy_in_room] + enemy['name'].lower().replace('-', ' ').split()
-                    if t == enemy_in_room or t in enemy_words:
+                    if _game.enemy_target_matches(target, enemy_in_room, enemy):
                         _game.attack_with_weapon(target, weapon_name)
                     else:
                         _h(f"Hier ist kein '{target}'.")
@@ -413,9 +411,7 @@ def handle_combat_commands(cmd):
                     _h("Es gibt hier nichts zum Angreifen!")
                     _h("")
                     return True
-                t = target.lower().strip()
-                enemy_words = [enemy_in_room] + enemy['name'].lower().replace('-', ' ').split()
-                if t == enemy_in_room or t in enemy_words:
+                if _game.enemy_target_matches(target, enemy_in_room, enemy):
                     _game.unarmed_attack(target)
                 else:
                     _h(f"Hier ist kein '{target}'.")
