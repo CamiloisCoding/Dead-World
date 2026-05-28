@@ -912,7 +912,7 @@ rooms = {
     'gl_küche': {#Geheimlabor
         'name': 'Geheimlabor - Küche',
         'description': 'Edelstahl und fliesierte Wände. Hier stehen ein paar Öfen, schränke und Kühlschränke im Raum. In der mitte ist ein platz zur zubereitung vom Essen, an der Decke dadüber ist ein Lüftungs schacht welcher aussieht als käme man damit ins Schlafzimmer 3.',
-        'exits': {'Osten': 'gl_kafeteria', 'Westen': 'gl_schlafzimmer3'},
+        'exits': {'Westen': 'gl_kafeteria', 'hoch': 'gl_schlafzimmer3'},
         'items': [],
         'in_development': False
     }, 
@@ -1284,7 +1284,7 @@ rooms = {
     'nord_östliche_weggabelung': {#Stadt Norden
         'name': 'Nord Östliche Weggabelung',
         'description': 'Eine breite Weggabelung. Im NORDEN führt die Straße weiter. Im WESTEN liegt die nordwestliche Weggabelung. Nach SÜDEN geht es zur östlichen Straße. Im OSTEN siehst du den Parkplatz von Walmart.',
-        'exits': {'norden': 'norden_straße', 'westen': 'nord_westliche_weggabelung', 'süden': 'östliche_straße', 'nord_osten': 'parkplatz'},
+        'exits': {'norden': 'norden_straße', 'westen': 'nord_westliche_weggabelung', 'süden': 'östliche_straße', 'osten': 'parkplatz'},
         'items': [],
         'in_development': False,
         'spawn_chance': True,
