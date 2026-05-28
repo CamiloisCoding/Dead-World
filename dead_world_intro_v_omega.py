@@ -927,7 +927,7 @@ rooms = {
         'name': 'Geheimlabor - Labor',
         'description': 'Im Raum sind viele tische und Stühle mit PCs die der Untersuchung von Viralen infektionen dienen, Im Süden liegt eine Tür.',
         'exits': {'Osten': 'gl_sicherheits_lvl2_flur','Süden':'gl_labor_flur','westen':'gl_testlb_flur'},
-        'items': [],
+        'items': ['Akten'],
         'in_development': False
     },
     'gl_labor_flur': {#Geheimlabor

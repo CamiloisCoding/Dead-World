@@ -202,6 +202,8 @@ def handle_item_commands(cmd):
             _h("25.08.04")
             _h("8 Neue Patienten ......... wut, agression..... mit 3 bissspuren........,1 patient nicht ansprechbar.......")
             _h("Viel mehr kannst du nicht entziffern.")
+        elif item == 'Akten': 
+            _h("In den Akten stehen die untersuchungen von ")
         return True
 
     # --- INVENTAR ---
