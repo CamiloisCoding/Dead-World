@@ -197,7 +197,11 @@ def handle_item_commands(cmd):
             _h("Die Stadt ist komplett überrant, alles voller zombies, jedes haus durchrannt, kau.............rgendwo sicher.")
             _h("Ich bin hier noch mit .....dren überlebenden, wir sind hier und mehr essen und trinken zu finden aber fast alles ist leer oder aufgebraucht.")
             _h("Hoffentlich schaffen wir es noch aus dem Laden, scho.............en waren zombies hinter uns her und wir konnten sie gerade so abwimmeln")
-        
+        elif item == 'Wichtiges Dokument:'
+            _h("Vieles vom dokument nicht mehr lesbar außer ein paar Zeilen.")
+            _h("25.08.04")
+            _h("8 Neue Patienten ......... wut, agression..... mit 3 bissspuren........,1 patient nicht ansprechbar.......")
+            _h("Viel mehr kannst du nicht entziffern.")
         return True
 
     # --- INVENTAR ---
@@ -610,7 +614,7 @@ def handle_interaction_commands(cmd):
         _game.numpad_awaiting_code = False
         code_str = cmd.strip()
         if code_str.isdigit():
-            if int(code_str) == 123456:
+            if int(code_str) == 250804831:
                 _game.numpad_nutzen = True
                 _game.unlock_transition('krankenhaus_geheim_treppe')
                 _h("Du tippst die Ziffern langsam ein...")
@@ -824,8 +828,8 @@ def handle_interaction_commands(cmd):
             return True
         _game.numpad_awaiting_code = True
         _h("Du legst deine Hand auf das Nummern-Pad.")
-        _h("Tippe die 6 Ziffern als nächsten Befehl ein.")
-        _h("(Beispiel: 123456)")
+        _h("Tippe die 8 Ziffern als nächsten Befehl ein.")
+        _h("(Beispiel: 12345678)")
         _h("")
         return True
 

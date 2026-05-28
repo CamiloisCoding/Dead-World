@@ -1096,7 +1096,7 @@ rooms = {
         'name': 'Krankenhaus - Aufnahme ',
         'description': 'Viele Akten von Patienten und verschiedene bilder in regalen.',
         'exits': {'Osten': 'krankenhaus_flur_norden_f2'},
-        'items': [],
+        'items': [''],
         'in_development': False
     },
     'krankenhaus_flur_mitte_f2': {#Krankenhaus
@@ -1131,7 +1131,7 @@ rooms = {
         'name': 'Krankenhaus - Schwesternstation',
         'description': 'Im Raum sind bänke, tische und stühle, die Küche abgeblockt ohne weg mehr hin, Im norden eine doppeltür zu einem krankenzimmer und im Süden führt der Gang zum wäscheraum.',
         'exits': {'Norden': 'krankenhaus_krankenzimmer','Süden': 'krankenhaus_waschraum_flur'},
-        'items': [],
+        'items': ['Wichtiges Dokument'],
         'in_development': False
     },
     'krankenhaus_krankenzimmer': {#Krankenhaus
@@ -1220,7 +1220,7 @@ rooms = {
     'bibliothek_1.1': {#Bibliothek
         'name': 'Bibliothek 1',
         'description': 'Der Tresen leer, schränke umgeworfen, Im Westen sieht es so aus als ginge es weiter sowie auch in richtung Osten',
-        'exits': {'südwesten': 'bibliothek_eingang', 'westen': 'bibliothek_1.2', 'osten': 'bibliothek_2'},
+        'exits': {'süden': 'bibliothek_eingang', 'westen': 'bibliothek_1.2', 'osten': 'bibliothek_2'},
         'items': [],
         'in_development': False
     },
