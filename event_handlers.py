@@ -5,9 +5,56 @@
 # Each handler accesses game state via a module reference (_game).
 
 import pygame
+import ctypes
 from config import *
 
 _game = None
+
+
+# ========================
+# CLIPBOARD HELPERS (Windows)
+# ========================
+def _clipboard_get():
+    """Liest Text aus der Windows-Zwischenablage."""
+    CF_UNICODETEXT = 13
+    try:
+        ctypes.windll.user32.OpenClipboard(0)
+        handle = ctypes.windll.user32.GetClipboardData(CF_UNICODETEXT)
+        if not handle:
+            return ''
+        ptr = ctypes.windll.kernel32.GlobalLock(handle)
+        text = ctypes.wstring_at(ptr)
+        ctypes.windll.kernel32.GlobalUnlock(handle)
+        return text
+    except Exception:
+        return ''
+    finally:
+        try:
+            ctypes.windll.user32.CloseClipboard()
+        except Exception:
+            pass
+
+
+def _clipboard_set(text):
+    """Schreibt Text in die Windows-Zwischenablage."""
+    CF_UNICODETEXT = 13
+    GMEM_MOVEABLE = 0x0002
+    try:
+        data = text.encode('utf-16-le') + b'\x00\x00'
+        handle = ctypes.windll.kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+        ptr = ctypes.windll.kernel32.GlobalLock(handle)
+        ctypes.memmove(ptr, data, len(data))
+        ctypes.windll.kernel32.GlobalUnlock(handle)
+        ctypes.windll.user32.OpenClipboard(0)
+        ctypes.windll.user32.EmptyClipboard()
+        ctypes.windll.user32.SetClipboardData(CF_UNICODETEXT, handle)
+    except Exception:
+        pass
+    finally:
+        try:
+            ctypes.windll.user32.CloseClipboard()
+        except Exception:
+            pass
 
 
 def init_event_handlers(game_module):
@@ -151,6 +198,9 @@ def handle_keydown_game(event):
             _game.input_text = ""
             _game.cursor_position = 0
             _game.history_index = -1
+        elif getattr(_game, 'credits_pending', False):
+            _game.credits_pending = False
+            _game.show_credits()
         _game.enter_held = True
         _game.last_enter_time = pygame.time.get_ticks() + key_initial_delay
 
@@ -222,8 +272,26 @@ def handle_keydown_game(event):
             _game.scroll_offset += 3
             _game.scroll_offset = min(_game.scroll_offset, _game.max_scroll)
 
+    # Ctrl+V — Einfügen aus Zwischenablage
+    elif event.key == pygame.K_v and (pygame.key.get_mods() & pygame.KMOD_CTRL) and _game.prolog_shown:
+        pasted = _clipboard_get()
+        # Nur erste Zeile, Steuerzeichen entfernen
+        pasted = pasted.split('\n')[0].split('\r')[0]
+        pasted = ''.join(c for c in pasted if c.isprintable())
+        if pasted:
+            before = _game.input_text[:_game.cursor_position]
+            after = _game.input_text[_game.cursor_position:]
+            combined = before + pasted + after
+            _game.input_text = combined[:200]  # max. 200 Zeichen
+            _game.cursor_position = min(len(before) + len(pasted), 200)
+
+    # Ctrl+C — aktuellen Input in Zwischenablage kopieren
+    elif event.key == pygame.K_c and (pygame.key.get_mods() & pygame.KMOD_CTRL) and _game.prolog_shown:
+        if _game.input_text:
+            _clipboard_set(_game.input_text)
+
     # Normal input
-    elif _game.prolog_shown and len(_game.input_text) < 60 and event.unicode.isprintable():
+    elif _game.prolog_shown and len(_game.input_text) < 200 and event.unicode.isprintable():
         _game.input_text = _game.input_text[:_game.cursor_position] + event.unicode + _game.input_text[_game.cursor_position:]
         _game.cursor_position += 1
 

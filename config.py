@@ -34,6 +34,7 @@ MENU = 1
 OPTIONS = 2
 GAME = 3
 PAUSED = 5
+CREDITS = 6
 
 # ========================
 # COLORS — Atmospheric Post-Apocalyptic Palette
@@ -160,6 +161,14 @@ enemies = {
     'zombie': {'name': 'Toxoplasma-Zombie', 'health': 100, 'max_health': 100, 'damage': [8, 20], 'distance': 'nah'},
     'infizierter': {'name': 'Infizierter Mensch', 'health': 80, 'max_health': 80, 'damage': [8, 15], 'distance': 'mittel'},
     'geheimlabor_boss': {'name': 'Mutierter Labor-Leiter', 'health': 280, 'max_health': 280, 'damage': [18, 38], 'distance': 'nah'},
+    'zombie_hure': {
+        'name': 'Zombie-Hure',
+        'health': 9999, 'max_health': 9999,
+        'damage': [25, 45],
+        'distance': 'nah',
+        'immune_to_weapons': True,
+        'weakpoint': 'tanga',
+    },
 }
 
 # ========================
@@ -266,7 +275,7 @@ OUTDOOR_ROOMS = {
     # Gebirgsgebiet & Flusstal
     'berglandschaft', 'fluss',
     # Walddorf-Dorfstraße & Umgebung
-    'walddorf_straße',
+    'walddorf_straße', 'walddorf_straße_mitte', 'walddorf_straße_nord',
     # Labyrinth (Außengänge)
     'labyrinth_eingang', 'labyrinth_gang1', 'labyrinth_sackgasse1',
     'labyrinth_kreuzung', 'labyrinth_sackgasse2', 'labyrinth_gang2', 'labyrinth_ausgang',

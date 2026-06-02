@@ -426,8 +426,80 @@ def handle_reload(cmd):
 # ========================
 # COMBAT COMMANDS
 # ========================
+def _handle_tanga_ziehen(cmd):
+    """Spezial-Angriff: Tangazieher gegen die Zombie-Hure im Sex Dungeon."""
+    TANGA_CMDS = {
+        'ziehe tanga', 'zieh tanga', 'ziehe tanga hoch', 'zieh tanga hoch',
+        'tangazieher', 'hosenzieher', 'tanga ziehen', 'tanga hochziehen',
+        'ziehe den tanga', 'zieh den tanga', 'ziehe den tanga hoch',
+    }
+    if cmd not in TANGA_CMDS:
+        return False
+
+    if _game.current_room != 'sex_dungeon':
+        _h("Hier gibt es keinen Tanga zum Ziehen.")
+        _h("")
+        return True
+
+    room = _game.rooms['sex_dungeon']
+    enemy_in_room = room.get('enemy')
+    if not enemy_in_room or enemy_in_room != 'zombie_hure':
+        _h("Die Zombie-Hure ist bereits besiegt.")
+        _h("")
+        return True
+
+    enemy = _game.enemies.get('zombie_hure')
+    if not enemy or enemy['health'] <= 0:
+        _h("Die Zombie-Hure ist bereits besiegt.")
+        _h("")
+        return True
+
+    _h("")
+    _h("Du weichst einem ihrer Schläge aus — ein Schritt zur Seite, zwei nach vorne.")
+    _h("Deine Finger greifen nach dem Tanga-Stoff...")
+    _h("")
+    _h("Du ziehst. Mit aller Kraft. Nach OBEN.")
+    _h("")
+    _h("Ein Reißen. Ein Knacken. Ein Geräusch das du nie vergessen wirst.")
+    _h("")
+    _h("Die Zombie-Hure kreischt — ein Laut der aus tausend Metern Tiefe kommt.")
+    _h("Ihr Körper bäumt sich auf, zuckt, verkrampft sich.")
+    _h("Der Stoff gräbt sich tiefer als physikalisch möglich in den Körper.")
+    _h("Das Monster kollabiert.")
+    _h("")
+    _h("=== SIEG — TANGAZIEHER AUSGEFÜHRT ===")
+    _h("")
+
+    enemy['health'] = 0
+    _game._resolve_enemy_defeat(enemy, 'zombie_hure', room)
+    return True
+
+
 def handle_combat_commands(cmd):
     """Handles: ausrüsten, schieße/schiesse, schlag/schlage, stich"""
+
+    # Tangazieher — einzige Schwachstelle der Zombie-Hure
+    if _handle_tanga_ziehen(cmd):
+        return True
+
+    # ── FRIEDHOF BOSS INTERCEPT ──────────────────────────────────────────
+    # Fängt alle Angriffs-Befehle auf dem Friedhof ab, solange der Boss aktiv ist.
+    # Erlaubt weiterhin: ausrüsten, nachladen (Vorbereitung auf den Kampf).
+    _ANGRIFF = (
+        cmd.startswith('schieß') or cmd.startswith('schiess') or
+        cmd.startswith('schlag') or cmd.startswith('schlage') or
+        cmd.startswith('stich') or
+        cmd.startswith('töte') or cmd.startswith('töten') or cmd.startswith('tote') or
+        cmd.startswith('greife') or cmd.startswith('greif ') or
+        cmd.startswith('kämpfe') or cmd.startswith('kämpf ') or
+        cmd.startswith('angriff') or cmd.startswith('attacke')
+    )
+    if (_ANGRIFF and
+            _game.current_room == 'friedhof' and
+            getattr(_game, 'friedhof_boss_intro_gezeigt', False) and
+            not getattr(_game, 'friedhof_event_abgeschlossen', False)):
+        _game.trigger_friedhof_boss_fight()
+        return True
 
     if cmd.startswith('ausrüsten '):
         weapon_key = cmd[10:].strip()
@@ -867,7 +939,7 @@ def handle_interaction_commands(cmd):
 
     # ------------------------------------------------------------
     # HAUS1: Nachtschrank öffnen
-    # 'nachtschrank' (12) -> trunkat. 'nachtschr' (9). Substring 'nachtschr' deckt beides ab.
+    # Substring 'nachtschr' matcht sowohl 'nachtschrank' als auch Teil-Eingaben (kein Längen-Limit).
     # ------------------------------------------------------------
     if 'nachtschr' in cmd and _has_any(cmd, 'öffne', 'oeffne', 'auf'):
         if _game.current_room == 'haus1_schlafzimmer':
@@ -987,8 +1059,8 @@ def handle_interaction_commands(cmd):
     # Raum: coffeeshop
     # Befehle: spreche/rede/grüß mit christopher, untersuche christopher/mann
     # ------------------------------------------------------------
-    # Hinweis: process_command kürzt Wörter auf 9 Zeichen (außer KNOWN_VERBS)
-    # "christopher" (11) → "christoph", "überlebend" (10) → "überleben"
+    # Hinweis: Wörter werden NICHT mehr gekürzt. Die Präfixe 'christoph'/'überleben'
+    # matchen per Substring-Check trotzdem die vollen Eingaben.
     _CHRISTOPHER_CMDS = (
         _has_any(cmd, 'spreche', 'sprich', 'rede', 'grüße', 'grüß', 'hallo', 'hi') and
         _has_any(cmd, 'christoph', 'thomson', 'mann', 'typ', 'kerl', 'überleben')
@@ -1099,11 +1171,69 @@ def handle_interaction_commands(cmd):
         return True
 
     # ------------------------------------------------------------------
-    # BEGLEITER-MANAGEMENT: folge mir / bleib hier / begleiter status
+    # BEGLEITER-MANAGEMENT: folge mir / bleib hier / begleiter status / gruppe
     # ------------------------------------------------------------------
-    _FOLLOW_CMD = _has_any(cmd, 'folge', 'komm', 'begleite') and _has_any(cmd, 'mir', 'mich', 'christoph')
-    _STAY_CMD   = _has_any(cmd, 'bleib', 'warte', 'halt') and _has_any(cmd, 'hier', 'christoph', 'stop')
+    _IS_EMILIA_CMD = _has_any(cmd, 'emilia', 'albrecht', 'mädchen')
+    _IS_HELENE_CMD = _has_any(cmd, 'helene', 'oma', 'großmutt', 'großmutter', 'alte')
+    _FOLLOW_CMD  = (
+        _has_any(cmd, 'folge', 'komm', 'begleite') and
+        _has_any(cmd, 'mir', 'mich', 'christoph') and
+        not _IS_EMILIA_CMD and not _IS_HELENE_CMD
+    )
+    _STAY_CMD    = (
+        _has_any(cmd, 'bleib', 'warte', 'halt') and
+        _has_any(cmd, 'hier', 'christoph', 'stop') and
+        not _IS_EMILIA_CMD and not _IS_HELENE_CMD
+    )
     _COMP_STATUS = _has_any(cmd, 'begleiter', 'companion', 'christopher') and _has_any(cmd, 'status', 'zustand', 'hp', 'leben')
+    _BONI_STATUS = _has_any(cmd, 'boni', 'bonus', 'buffs', 'buff', 'stärke', 'aktiv') and _has_any(cmd, 'status', 'zeig', 'liste', 'aktiv', 'boni', 'bonus')
+    _GRUPPE_STATUS = _has_any(cmd, 'gruppe', 'group', 'team', 'begleiter', 'gefährten', 'wer', 'folgt') and \
+                     _has_any(cmd, 'gruppe', 'group', 'team', 'mir', 'dabei', 'folgt', 'status', 'liste', 'zeig')
+
+    if _GRUPPE_STATUS and not _COMP_STATUS:
+        comp         = _game.player_stats.get('companion')
+        emilia_f     = _game.player_stats.get('emilia_following', False)
+        helene_f     = _game.player_stats.get('helene_following', False)
+        emilia_met   = getattr(_game, 'emilia_getroffen', False)
+        c_verletzt   = getattr(_game, 'christopher_verletzt', False)
+        e_entführt   = getattr(_game, 'friedhof_event_abgeschlossen', False) and not emilia_f
+        h_tot        = getattr(_game, 'friedhof_event_abgeschlossen', False) and not helene_f and emilia_met
+
+        _h("=== GRUPPE ===")
+
+        # Christopher
+        if comp == 'christopher':
+            hp = _game.player_stats.get('companion_hp', 100)
+            stunned = _game.player_stats.get('companion_stunned_turns', 0)
+            zustand = "Schwer verletzt" if c_verletzt else ("Betäubt" if stunned > 0 else "Einsatzbereit")
+            _h(f"Christopher Thomson  — folgt dir  [HP: {hp}/100 | {zustand}]")
+        elif comp == 'christopher_waiting':
+            _h("Christopher Thomson  — wartet  ['folge mir' zum Reaktivieren]")
+        else:
+            _h("Christopher Thomson  — nicht dabei")
+
+        # Emilia
+        if not emilia_met:
+            _h("Emilia Albrecht      — unbekannt")
+        elif e_entführt:
+            _h("Emilia Albrecht      — ENTFÜHRT vom Strecker")
+        elif emilia_f:
+            _h("Emilia Albrecht      — folgt dir  [Liebeskraft aktiv]")
+        else:
+            _h("Emilia Albrecht      — wartet  ['folge mir emilia']")
+
+        # Helene
+        if not emilia_met:
+            _h("Helene Albrecht      — unbekannt")
+        elif h_tot:
+            _h("Helene Albrecht      — TOT (Friedhof)")
+        elif helene_f:
+            _h("Helene Albrecht      — folgt dir  [Kräuterheilung aktiv]")
+        else:
+            _h("Helene Albrecht      — wartet  ['folge mir helene']")
+
+        _h("")
+        return True
 
     if _FOLLOW_CMD:
         comp = _game.player_stats.get('companion')
@@ -1167,6 +1297,341 @@ def handle_interaction_commands(cmd):
             _h("  - 25% Chance Gegenangriff abzufangen (-50% Schaden)")
             _h("  - +10% Fernkampf-Genauigkeit")
             _h("  - Passive HP-Regen nach Kämpfen")
+            _h("")
+            if getattr(_game, 'emilia_getroffen', False):
+                emilia_f = _game.player_stats.get('emilia_following', False)
+                helene_f = _game.player_stats.get('helene_following', False)
+                if emilia_f or helene_f:
+                    _h("Zusatz-Boni:")
+                    if emilia_f:
+                        _h("  - Emilia: +10 Schaden [Liebeskraft — AKTIV]")
+                    if helene_f:
+                        _h("  - Helene: +8 HP/Treffer [Kräuterheilung — AKTIV]")
+                    _h("")
+        return True
+
+    if _BONI_STATUS:
+        emilia_met = getattr(_game, 'emilia_getroffen', False)
+        comp = _game.player_stats.get('companion')
+        emilia_follow = _game.player_stats.get('emilia_following', False)
+        helene_follow = _game.player_stats.get('helene_following', False)
+        has_any = comp or emilia_met
+        if not has_any:
+            _h("Keine bekannten Verbündeten.")
+            _h("Finde Verbündete um Kampf-Boni freizuschalten.")
+            _h("")
+        else:
+            _h("=== KAMPF-BONI ÜBERSICHT ===")
+            if comp and comp != 'christopher_waiting':
+                _h("Christopher Thomson [AKTIV]:")
+                _h("  - 50% Schaden abfangen")
+                _h("  - HP-Regen nach Kämpfen")
+            elif comp == 'christopher_waiting':
+                _h("Christopher Thomson [WARTET — folge mir]")
+            if emilia_met:
+                status_e = "AKTIV" if emilia_follow else "WARTET — 'folge mir emilia'"
+                _h(f"Emilia Albrecht [{status_e}]:")
+                _h("  - +10 Schaden pro Angriff [Liebeskraft]")
+                status_h = "AKTIV" if helene_follow else "WARTET — 'folge mir helene'"
+                _h(f"Helene Albrecht [{status_h}]:")
+                _h("  - +8 HP nach jedem Feindtreffer [Kräuterheilung]")
+            _h("")
+        return True
+
+    # ------------------------------------------------------------------
+    # EMILIA ALBRECHT — Dialog & Untersuchung (Waldhaus)
+    # Befehle: rede/spreche/hallo mit emilia / mädchen / frau
+    # Untersuche: untersuche emilia / junge frau / albrecht
+    # ------------------------------------------------------------------
+    _EMILIA_CMDS = (
+        _has_any(cmd, 'spreche', 'sprich', 'rede', 'grüße', 'grüß', 'hallo', 'hi') and
+        _has_any(cmd, 'emilia', 'mädchen', 'albrecht')
+    )
+    _EMILIA_EXAMINE = (
+        _has_any(cmd, 'untersuche', 'untersuchen', 'schau', 'betracht') and
+        _has_any(cmd, 'emilia', 'mädchen', 'albrecht')
+    )
+
+    if (_EMILIA_CMDS or _EMILIA_EXAMINE) and _game.current_room == 'waldhaus':
+        if not getattr(_game, 'emilia_getroffen', False):
+            _h("Du musst erst ins Waldhaus hineingehen.")
+            _h("")
+            return True
+
+        if _EMILIA_EXAMINE and not _EMILIA_CMDS:
+            _h("Emilia Albrecht, 26 Jahre alt, etwa 167 cm groß.")
+            _h("Dunkles, schulterlanges Haar, ruhige braune Augen.")
+            _h("Ihre Kleidung ist schlicht und praktisch — selbst geflickt,")
+            _h("aber sauber. Sie trägt einen kleinen Beutel mit Kräutern am Gürtel.")
+            _h("Etwas an ihr ist schwer in Worte zu fassen —")
+            _h("eine Ruhe, die man in der Apokalypse selten findet.")
+            _h("")
+            return True
+
+        idx = getattr(_game, 'emilia_dialog_index', 0)
+
+        if idx == 0:
+            _h('Emilia sieht dich kurz an — abschätzend, aber nicht feindlich.')
+            _h('"Wie lange seid ihr schon unterwegs?"')
+            _h('Sie wischt ihre Hände an einem Tuch ab.')
+            _h('"Wir sind seit dem ersten Tag hier. Meine Großmutter kennt den')
+            _h('Wald wie ihre Westentasche — das hat uns am Leben gehalten."')
+            _h("")
+            _h('"Die Stadt... die meide ich. Zu gefährlich. Zu laut."')
+            _h('Sie schaut kurz Richtung Nebenraum.')
+            _h('"Hier ist es still. Und still bedeutet sicher."')
+            _h("")
+            _game.emilia_dialog_index = 1
+
+        elif idx == 1:
+            _h('Du fragst sie nach dem Anfang der Pandemie.')
+            _h("")
+            _h('Emilia schweigt einen Moment lang.')
+            _h('"Ich habe meiner Großmutter einen Schwur gegeben.')
+            _h('Dass ich sie nicht alleine lasse. Dass ich sie schütze."')
+            _h("")
+            _h('Ihr Blick wird kurz irgendwo anders.')
+            _h('"Helene ist nicht mehr die Jüngste. Und die Welt draußen ist')
+            _h('nicht mehr... die Welt, in der sie aufgewachsen ist."')
+            _h("")
+            _h('"Also bleiben wir hier."')
+            _h("")
+            if _game.player_stats.get('companion') == 'christopher':
+                _h('Christopher lehnt an der Wand und hört zu.')
+                _h('Er sagt nichts, aber du siehst wie sein Blick an Emilia')
+                _h('hängenbleibt — einen Atemzug zu lang.')
+                _h("")
+            _game.emilia_dialog_index = 2
+
+        elif idx == 2:
+            _h('Du fragst, wie sie sich versorgen.')
+            _h("")
+            _h('"Meine Großmutter weiß alles über Heilpflanzen. Über Konservieren.')
+            _h('Sie hat mir beigebracht, was ich wissen muss."')
+            _h('Emilia deutet auf einen Tisch voller getrockneter Kräuter.')
+            _h('"Infektionen behandeln, Fieber senken, Schmerzen lindern."')
+            _h("")
+            _h('Sie zögert kurz — dann:')
+            _h('"Helene ist... zäher als sie aussieht."')
+            _h('Es klingt wie eine Warnung und ein Versprechen zugleich.')
+            _h("")
+            _game.emilia_dialog_index = 3
+
+        elif idx == 3:
+            _h('Du fragst Emilia, ob sie und Helene alleine hierher kamen.')
+            _h("")
+            _h('"Wir hatten andere. Am Anfang."')
+            _h('Pause.')
+            _h('"Jetzt sind es nur noch wir zwei."')
+            _h("")
+            _h('Keine weiteren Worte. Ihr Blick sagt genug.')
+            _h("")
+            if _game.player_stats.get('companion') == 'christopher':
+                _h('Christopher räuspert sich.')
+                _h('"Falls ihr jemals... Verstärkung braucht."')
+                _h('Es klingt beiläufig. Es ist es nicht.')
+                _h("")
+            _game.emilia_dialog_index = 4
+
+        else:
+            _h('Emilia nickt dir ruhig zu.')
+            _h('"Wir sind hier, wenn ihr uns braucht."')
+            _h("")
+
+        return True
+
+    elif (_EMILIA_CMDS or _EMILIA_EXAMINE) and _game.current_room != 'waldhaus':
+        if getattr(_game, 'emilia_getroffen', False):
+            _h("Emilia ist nicht hier. Du findest sie im Waldhaus.")
+        else:
+            _h("Diesen Namen kennst du noch nicht.")
+        _h("")
+        return True
+
+    # ------------------------------------------------------------------
+    # HELENE ALBRECHT — Dialog & Untersuchung (Waldhaus)
+    # Befehle: rede/spreche/hallo mit helene / oma / großmutter
+    # Präfix 'großmutt' matcht per Substring auch das volle 'großmutter' (kein Längen-Limit).
+    # ------------------------------------------------------------------
+    _HELENE_CMDS = (
+        _has_any(cmd, 'spreche', 'sprich', 'rede', 'grüße', 'grüß', 'hallo', 'hi') and
+        _has_any(cmd, 'helene', 'oma', 'großmutt', 'großmutter', 'ältere', 'alte')
+    )
+    _HELENE_EXAMINE = (
+        _has_any(cmd, 'untersuche', 'untersuchen', 'schau', 'betracht') and
+        _has_any(cmd, 'helene', 'oma', 'großmutt', 'großmutter', 'ältere', 'alte')
+    )
+
+    if (_HELENE_CMDS or _HELENE_EXAMINE) and _game.current_room == 'waldhaus':
+        if not getattr(_game, 'emilia_getroffen', False):
+            _h("Du musst erst ins Waldhaus hineingehen.")
+            _h("")
+            return True
+
+        if _HELENE_EXAMINE and not _HELENE_CMDS:
+            _h("Helene Albrecht, 63 Jahre alt, etwa 154 cm groß.")
+            _h("Weiß-silbernes Haar, zurückgesteckt. Kleine, wache Augen.")
+            _h("Ihre Hände — die Hände einer Frau, die ihr Leben lang gearbeitet hat —")
+            _h("bewegen sich langsam aber sicher zwischen ihren Kräutern.")
+            _h("Am linken Unterarm, knapp unter dem Ärmel, etwas das wie eine alte")
+            _h("Narbe aussieht. Sie zieht den Stoff darüber, bevor du genauer")
+            _h("hinschauen kannst.")
+            _h("")
+            return True
+
+        idx = getattr(_game, 'helene_dialog_index', 0)
+
+        if idx == 0:
+            _h('Helene schaut dich über die Schulter kurz an.')
+            _h('Ihr Blick ist direkt — der Blick von jemandem, der Menschen')
+            _h('einschätzen kann.')
+            _h("")
+            _h('"Setzt euch", sagt sie schließlich.')
+            _h('"Ein Mensch, der steht und redet, schläft schlecht."')
+            _h("")
+            _h('Sie stellt zwei alte Tassen auf den Tisch.')
+            _h('"Kräutertee. Kein Zucker mehr. Aber warm."')
+            _h("")
+            _game.helene_dialog_index = 1
+
+        elif idx == 1:
+            _h('Du fragst Helene nach dem Wald — wie sie ihn so gut kennen.')
+            _h("")
+            _h('"Ich bin hier groß geworden. Meine Mutter hat mir jeden Baum')
+            _h('gezeigt, jede Pflanze, jede Beere."')
+            _h('Sie lächelt — kurz, aber echt.')
+            _h('"Damals dachte ich, das wäre nur... Heimatkunde."')
+            _h("")
+            _h('Sie faltet die Hände auf dem Tisch.')
+            _h('"Nun ja. Jetzt weiß ich es besser."')
+            _h("")
+            _game.helene_dialog_index = 2
+
+        elif idx == 2:
+            _h('Du fragst sie nach ihrem Befinden — sie wirkt manchmal müde.')
+            _h("")
+            _h('Helene hält kurz inne.')
+            _h('"Ich bin alt. Alter macht müde."')
+            _h('Ein kurzes Innehalten — kaum merklich.')
+            _h('"Aber ich bin noch hier. Das reicht."')
+            _h("")
+            _h('Emilia, die am anderen Ende des Raumes steht,')
+            _h('dreht sich kurz um. Ihr Blick streift dich — dann blickt sie')
+            _h('schnell wieder weg.')
+            _h("")
+            _game.helene_dialog_index = 3
+
+        else:
+            _h('Helene nickt dir freundlich zu.')
+            _h('"Passt aufeinander auf. Das ist das Einzige, was noch zählt."')
+            _h("")
+
+        return True
+
+    elif (_HELENE_CMDS or _HELENE_EXAMINE) and _game.current_room != 'waldhaus':
+        if getattr(_game, 'emilia_getroffen', False):
+            if _game.player_stats.get('helene_following'):
+                _h('Helene geht hinter dir. "Ich bin hier."')
+            else:
+                _h("Helene ist nicht hier. Du findest sie im Waldhaus.")
+        else:
+            _h("Diesen Namen kennst du noch nicht.")
+        _h("")
+        return True
+
+    # ------------------------------------------------------------------
+    # ALBRECHT-BEGLEITER: folge mir emilia/helene — bleib hier emilia/helene
+    # ------------------------------------------------------------------
+    _EMILIA_FOLLOW = (
+        _has_any(cmd, 'folge', 'komm', 'begleite', 'mitkommen', 'mitkomm') and
+        _has_any(cmd, 'emilia', 'albrecht', 'mädchen')
+    )
+    _EMILIA_STAY = (
+        _has_any(cmd, 'bleib', 'warte', 'halt', 'stop') and
+        _has_any(cmd, 'emilia', 'albrecht', 'mädchen')
+    )
+    _HELENE_FOLLOW = (
+        _has_any(cmd, 'folge', 'komm', 'begleite', 'mitkommen', 'mitkomm') and
+        _has_any(cmd, 'helene', 'oma', 'großmutt', 'großmutter', 'alte')
+    )
+    _HELENE_STAY = (
+        _has_any(cmd, 'bleib', 'warte', 'halt', 'stop') and
+        _has_any(cmd, 'helene', 'oma', 'großmutt', 'großmutter', 'alte')
+    )
+
+    if _EMILIA_FOLLOW:
+        if not getattr(_game, 'emilia_getroffen', False):
+            _h("Du kennst Emilia noch nicht.")
+            _h("")
+            return True
+        if _game.player_stats.get('emilia_following'):
+            _h('Emilia ist bereits bei dir.')
+            _h('"Ich bin hier", sagt sie ruhig.')
+            _h("")
+        else:
+            _game.player_stats['emilia_following'] = True
+            _h('Emilia schaut dich kurz an, dann nickt sie.')
+            _h('"Gut. Ich bleibe nicht gerne alleine hier."')
+            _h("[Emilia folgt dir jetzt. Liebeskraft-Bonus aktiv.]")
+            _h("")
+        return True
+
+    if _EMILIA_STAY:
+        if not getattr(_game, 'emilia_getroffen', False):
+            _h("Du kennst Emilia noch nicht.")
+            _h("")
+            return True
+        if not _game.player_stats.get('emilia_following'):
+            _h('Emilia wartet bereits.')
+            _h("")
+        elif _game.current_room in OUTDOOR_ROOMS:
+            _h('Emilia schüttelt den Kopf.')
+            _h('"Draußen bleiben? Alleine? Nein."')
+            _h('"Sag mir wenn wir in einem Gebäude sind."')
+            _h("")
+        else:
+            _game.player_stats['emilia_following'] = False
+            _h('Emilia lehnt sich gegen die Wand.')
+            _h('"Ich warte hier auf euch. Passt auf euch auf."')
+            _h("[Emilia wartet. Liebeskraft-Bonus deaktiviert — 'folge mir emilia' zum Reaktivieren]")
+            _h("")
+        return True
+
+    if _HELENE_FOLLOW:
+        if not getattr(_game, 'emilia_getroffen', False):
+            _h("Du kennst Helene noch nicht.")
+            _h("")
+            return True
+        if _game.player_stats.get('helene_following'):
+            _h('Helene geht bereits mit dir.')
+            _h('"Ich bin noch dabei, keine Sorge."')
+            _h("")
+        else:
+            _game.player_stats['helene_following'] = True
+            _h('Helene seufzt kurz, dann steht sie auf.')
+            _h('"Na gut. Ich bin alt, nicht tot."')
+            _h('Sie packt ihren Kräuterbeutel zusammen.')
+            _h("[Helene folgt dir jetzt. Kräuterheilung-Bonus aktiv.]")
+            _h("")
+        return True
+
+    if _HELENE_STAY:
+        if not getattr(_game, 'emilia_getroffen', False):
+            _h("Du kennst Helene noch nicht.")
+            _h("")
+            return True
+        if not _game.player_stats.get('helene_following'):
+            _h('Helene wartet bereits.')
+            _h("")
+        elif _game.current_room in OUTDOOR_ROOMS:
+            _h('Helene schüttelt entschieden den Kopf.')
+            _h('"Draußen? In meinem Alter? Ich brauche ein Dach über dem Kopf."')
+            _h("")
+        else:
+            _game.player_stats['helene_following'] = False
+            _h('Helene setzt sich langsam auf einen Stuhl.')
+            _h('"Gut. Meine Knie danken es euch."')
+            _h("[Helene wartet. Kräuterheilung-Bonus deaktiviert — 'folge mir helene' zum Reaktivieren]")
             _h("")
         return True
 
@@ -1355,7 +1820,7 @@ def handle_look_map(cmd):
 def handle_godmode(cmd, raw_cmd=None):
     """Handles: godmode (toggle), tp/teleport [raum] (nur im Godmode)
 
-    raw_cmd: ungekürzte Version des Befehls (vor dem 9-Zeichen-Trimmer),
+    raw_cmd: Rohversion des Befehls (vor der Wort-Auflösung),
              damit Raumnamen wie 'home_depot_sw' unversehrt ankommen.
     """
     if raw_cmd is None:

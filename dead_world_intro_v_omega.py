@@ -158,6 +158,8 @@ current_state = INTRO
 # Pause-Menü
 pause_selected_index = 0
 _options_return_state = MENU  # Wohin nach Verlassen der Optionen zurückgekehrt wird
+_credits_start_time   = 0     # Zeitstempel beim Öffnen der Credits (für Auto-Scroll)
+credits_pending       = False # True sobald das Friedhof-Event vorbei → Credits beim nächsten ENTER
 
 visited_rooms = set()  # Besuchte Räume (zB. für Resets/Stats)
 
@@ -240,6 +242,14 @@ gasse_ende_untersucht = False
 #Christopher Thomson (NPC – Coffeeshop)
 christopher_getroffen = False   # Erstkontakt bereits gezeigt?
 christopher_dialog_index = 0    # Gesprächsfortschritt
+#Emilia & Helene Albrecht (NPCs – Waldhaus)
+emilia_getroffen = False         # Erstkontakt Waldhaus bereits gezeigt?
+emilia_dialog_index = 0          # Gesprächsfortschritt Emilia
+helene_dialog_index = 0          # Gesprächsfortschritt Helene
+#Friedhof Boss Event
+friedhof_boss_intro_gezeigt = False   # Boss-Intro beim Betreten gezeigt
+friedhof_event_abgeschlossen = False  # Gesamte Sequenz abgeschlossen
+christopher_verletzt = False          # Christopher nach dem Friedhof-Event
 #Skyscraper 1
 skyscraper1_rezeption_untersucht = False
 
@@ -300,9 +310,12 @@ player_stats = {
     'turns_since_last_meal': 0,   # Hunger tick counter
     'last_recovery_turn': 0,      # Passive recovery tracker
     # NPC-Begleiter-System
-    'companion': None,            # None | 'christopher'
+    'companion': None,            # None | 'christopher' | 'christopher_waiting'
     'companion_hp': 100,          # Begleiter-Lebenspunkte (0 = betäubt)
     'companion_stunned_turns': 0, # Züge bis Begleiter wieder helfen kann
+    # Albrecht-Begleiter (Waldhaus)
+    'emilia_following': False,    # Emilia folgt dem Spieler (Liebeskraft aktiv)
+    'helene_following': False,    # Helene folgt dem Spieler (Kräuterheilung aktiv)
     # Cheat
     'godmode': False,             # One-Hit-Kills, kein Gegenschaden, Teleport
 }
@@ -2039,22 +2052,102 @@ rooms = {
         'zombie_spawn': False
     },
     'walddorf_straße': {
-        'name': 'Walddorf-Dorfstraße',
+        'name': 'Walddorf-Dorfstraße – Süden',
         'description': (
-            'Eine moosbedeckte Dorfstraße, umgeben von uralten Bäumen, '
-            'deren Äste sich wie ein grünes Gewölbe über den Weg wölben. '
-            'Die Luft ist feucht und riecht nach Erde und altem Holz. '
-            'Verlassene Holzhäuser stehen zu beiden Seiten — Fensterläden schlagen im Wind. '
+            'Der Fluss hat dich hierher gebracht — an den südlichen Rand eines Dorfes, '
+            'das die Welt vergessen zu haben scheint. '
+            'Eine moosbedeckte Straße zieht sich zwischen uralten Bäumen nach NORDEN, '
+            'ihre Äste verflechten sich hoch oben zu einem lückenlosen Blätterdach. '
+            'Was immer hier einmal gelebt hat, lebt hier nicht mehr. '
+            'Und doch hat man das Gefühl, beobachtet zu werden. '
             'Im WESTEN führt eine ausgetretene Steintreppe in die Tiefe, '
             'zu einem unterirdischen Eingang. '
             'Im OSTEN erhebt sich eine alte Steinmauer — dahinter liegt ein Labyrinth.'
         ),
-        'exits': {'westen': 'sex_dungeon', 'osten': 'labyrinth_eingang'},
+        'exits': {'westen': 'sex_dungeon', 'osten': 'labyrinth_eingang', 'norden': 'walddorf_straße_mitte'},
         'items': [],
         'in_development': False,
         'spawn_chance': False,
         'zombie_spawn': False
     },
+    'walddorf_straße_mitte': {
+        'name': 'Walddorf-Dorfstraße – Mitte',
+        'description': (
+            'Die Straße verbreitert sich hier ein wenig, als hätte das Dorf einmal '
+            'einen Dorfplatz gehabt — ein Echo von Gemeinschaft, das längst verhallt ist. '
+            'Verrottete Holzbänke stehen schief im Gras, überwachsen von Efeu. '
+            'Eine Wetterfahne auf einem der Häuser dreht sich, obwohl kein Wind weht. '
+            'Im WESTEN verschwindet ein kaum sichtbarer Trampelpfad zwischen den Stämmen — '
+            'jemand geht diesen Weg noch, oder ging ihn einmal sehr oft. '
+            'Im NORDEN zieht sich die Straße weiter ins Dunkel. '
+            'Im SÜDEN liegt das südliche Ende des Dorfes.'
+        ),
+        'exits': {'süden': 'walddorf_straße', 'norden': 'walddorf_straße_nord', 'westen': 'waldhaus'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'walddorf_straße_nord': {
+        'name': 'Walddorf-Dorfstraße – Norden',
+        'description': (
+            'Die Straße endet hier — abrupt, als hätte jemand die Welt einfach '
+            'aufgehört weiterzubauen. '
+            'Das letzte Haus links hat keine Tür mehr; im Inneren bewegt sich nichts, '
+            'aber es riecht nach frischem Rauch. '
+            'Die Bäume stehen dichter als je zuvor, ihre Stämme so alt und breit, '
+            'dass sie wie Säulen einer untergegangenen Kathedrale wirken. '
+            'Dazwischen, im WESTEN, flimmert etwas — ein Licht, das keine Farbe hat, '
+            'die du benennen könntest. Die Luft dort schmeckt nach Honig und Verwesung. '
+            'Im SÜDEN liegt die Mitte des Dorfes.'
+        ),
+        'exits': {'süden': 'walddorf_straße_mitte', 'westen': 'märchen'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'waldhaus': {
+        'name': 'Das Waldhaus',
+        'description': (
+            'Tief im Wald, weit weg vom Trampelpfad, steht dieses Haus — '
+            'als wäre es aus dem Boden gewachsen. '
+            'Die Wände sind aus unbehauenem Stein, überzogen von schwarzem Moos, '
+            'und die Fensterläden hängen schief. '
+            'Eine Gartentür aus Eisen steht offen. Auf dem Türrahmen klebt Wachs '
+            'von hundert erloschenen Kerzen. '
+            'Drinnen hängt der Duft von Kräutern und Holzfeuer. '
+            'Emilia und ihre Großmutter Helene leben hier. '
+            'Der Rückweg nach OSTEN führt zur Dorfstraße.'
+        ),
+        'exits': {'osten': 'walddorf_straße_mitte'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'märchen': {
+        'name': 'Das Märchen',
+        'description': (
+            'Du trittst durch das Flimmern — und die Welt hört auf, die Welt zu sein. '
+            'Der Boden unter dir ist weiches Moos in einem Grün, '
+            'das in der Natur nicht vorkommt. '
+            'Bäume tragen Früchte, die leuchten. Schmetterlinge so groß wie Hände '
+            'sitzen reglos auf Blüten aus Kristall. '
+            'Irgendwo spielt jemand eine Melodie auf einem Instrument, '
+            'das du nicht kennst — sie klingt vertraut, wie ein Kindheitstraum '
+            'den du nie hattest. '
+            'Und doch: Die Stille darunter ist absolut. '
+            'Wenn du lange genug stillhältst, wirst du sie hören. '
+            'Der Ausweg zurück nach OSTEN flimmert in der Ferne.'
+        ),
+        'exits': {'osten': 'walddorf_straße_nord'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+
     'sex_dungeon': {
         'name': 'Sex Dungeon',
         'description': (
@@ -2063,10 +2156,18 @@ rooms = {
             'Der Boden ist kalt und nass. Ein beißender Geruch nach Moder, '
             'Schimmel und etwas Unaussprechlichem liegt in der Luft. '
             'In den Wänden sind Namen eingekratzt — viele Namen. '
+            'Und dann siehst du sie. '
+            'Aus dem Schatten löst sich eine Gestalt — weiblich einmal, jetzt etwas anderes. '
+            'Die ZOMBIE-HURE. Ihr Körper ist eine Wand aus verfaultem Fleisch und brutaler Kraft. '
+            'Kugeln, Klingen, Schläge — alles prallt von ihr ab wie von Beton. '
+            'Nur eine Stelle ist schwach: der enge TANGA, der sich tief in ihren Körper gräbt. '
+            'Ein gezielter Tangazieher könnte sie außer Gefecht setzen. '
+            'Tippe: "ziehe tanga" um die Schwachstelle auszunutzen. '
             'Die einzige Möglichkeit raus ist nach OSTEN.'
         ),
         'exits': {'osten': 'walddorf_straße'},
         'items': [],
+        'enemy': 'zombie_hure',
         'in_development': False,
         'spawn_chance': False,
         'zombie_spawn': False
@@ -2182,10 +2283,22 @@ rooms = {
             'Die Stille hier ist anders als anderswo — schwerer, erwartungsvoller. '
             'Im SÜDEN liegt der Ausgang des Labyrinths.'
         ),
+        'description_aftermath': (
+            'Der Friedhof ist nicht mehr derselbe. '
+            'Schwarzer Schleim verklebt das Gras, durchzogen von etwas das nach '
+            'verbranntem Fleisch und Öl riecht. '
+            'Reste des Verschlingers schmelzen langsam in die Erde zurück, als wären '
+            'sie nie da gewesen — oder als wollte die Welt es vergessen lassen. '
+            'Am Fuß der alten Eiche: eine Blutlache. Christophers. '
+            'Und daneben, in der weichen Erde: zwei Fußabdrücke. '
+            'Zu lang. Zu schmal. Nicht menschlich. '
+            'Sie führen nach Norden — und verlieren sich im Dunkel. '
+            'Im SÜDEN liegt der Ausgang des Labyrinths.'
+        ),
         'exits': {'süden': 'labyrinth_ausgang'},
         'items': [],
         'in_development': False,
-        'spawn_chance': True,
+        'spawn_chance': False,
         'zombie_spawn': False
     },
 
@@ -2766,6 +2879,7 @@ def start_game():
     global game_score, game_moves, view_mode, visited_rooms_desc, game_start_ticks, pending_ambiguity
     global bibliothek_4_schrank_geschoben, krankenhaus_schrank_geschoben, numpad_nutzen
     global christopher_getroffen, christopher_dialog_index
+    global emilia_getroffen, emilia_dialog_index, helene_dialog_index
     current_state = GAME
     game_history = []
     current_room = 'start'
@@ -2810,6 +2924,12 @@ def start_game():
     apply_coffeeshop_tür_state()
     christopher_getroffen = False
     christopher_dialog_index = 0
+    emilia_getroffen = False
+    emilia_dialog_index = 0
+    helene_dialog_index = 0
+    friedhof_boss_intro_gezeigt = False
+    friedhof_event_abgeschlossen = False
+    christopher_verletzt = False
 
     # Menü-Musik stoppen, Ambient-Musik starten
     start_ambient_music()
@@ -2831,6 +2951,8 @@ def load_game_from_menu():
     global krankenhaus_schrank_geschoben, numpad_nutzen, coffeeshop_tür_auf, gasse_ende_untersucht
     global skyscraper1_rezeption_untersucht
     global christopher_getroffen, christopher_dialog_index
+    global emilia_getroffen, emilia_dialog_index, helene_dialog_index
+    global friedhof_boss_intro_gezeigt, friedhof_event_abgeschlossen, christopher_verletzt
     global scored_items, scored_kills, pending_ambiguity, game_history
     
     if not os.path.exists(SAVE_FILE):
@@ -2887,6 +3009,12 @@ def load_game_from_menu():
     skyscraper1_rezeption_untersucht = data.get('skyscraper1_rezeption_untersucht', False)
     christopher_getroffen = data.get('christopher_getroffen', False)
     christopher_dialog_index = data.get('christopher_dialog_index', 0)
+    emilia_getroffen = data.get('emilia_getroffen', False)
+    emilia_dialog_index = data.get('emilia_dialog_index', 0)
+    helene_dialog_index = data.get('helene_dialog_index', 0)
+    friedhof_boss_intro_gezeigt = data.get('friedhof_boss_intro_gezeigt', False)
+    friedhof_event_abgeschlossen = data.get('friedhof_event_abgeschlossen', False)
+    christopher_verletzt = data.get('christopher_verletzt', False)
     # Puzzle-Übergänge anhand der geladenen Flags rekonstruieren.
     apply_bibliothek_bookshelf_state()
     apply_krankenhaus_geheimlabor_state()
@@ -2907,6 +3035,13 @@ def show_options():
     global current_state, _options_return_state
     _options_return_state = MENU
     current_state = OPTIONS
+
+
+def show_credits():
+    global current_state, _credits_start_time
+    _credits_start_time = pygame.time.get_ticks()
+    current_state = CREDITS
+
 
 def back_to_menu():
     global current_state
@@ -3210,6 +3345,10 @@ def move_direction(direction):
     add_to_history(f"Du gehst nach {direction.upper()}...")
     if player_stats.get('companion') == 'christopher':
         add_to_history("Christopher folgt dir.")
+    if player_stats.get('emilia_following'):
+        add_to_history("Emilia folgt dir.")
+    if player_stats.get('helene_following'):
+        add_to_history("Helene folgt dir, langsam aber stetig.")
     add_to_history("")
     describe_room()
 
@@ -3299,7 +3438,7 @@ def trigger_two_year_timeskip():
 
 def describe_room():
     """Beschreibt den aktuellen Raum"""
-    global game_score, christopher_getroffen
+    global game_score, christopher_getroffen, emilia_getroffen, friedhof_boss_intro_gezeigt
     room = rooms[current_room]
     
     # Score für neuen Raum
@@ -3325,7 +3464,11 @@ def describe_room():
         add_to_history(f"> {room['name']}")
     else:
         add_to_history(f"> {room['name']}")
-        add_to_history(room['description'])
+        # Friedhof: Aftermath-Beschreibung nach dem Boss-Event
+        if current_room == 'friedhof' and friedhof_event_abgeschlossen and room.get('description_aftermath'):
+            add_to_history(room['description_aftermath'])
+        else:
+            add_to_history(room['description'])
     
     visited_rooms_desc.add(current_room)
     
@@ -3413,6 +3556,96 @@ def describe_room():
         add_to_history('[Tipp: Tippe "hallo christopher" oder "rede mit christopher" um mit ihm zu reden.]')
         add_to_history("")
 
+    # Emilia & Helene Albrecht — Erstbegegnung im Waldhaus
+    if current_room == 'waldhaus' and not emilia_getroffen:
+        emilia_getroffen = True
+        add_to_history("")
+        add_to_history("─" * 50)
+        add_to_history("Die alte Holztür schwingt auf. Ein Duft von Kräutern und Bienenwachs.")
+        add_to_history("")
+        add_to_history("Aus dem Schatten — eine Bewegung. Schnell, kontrolliert.")
+        add_to_history("")
+        add_to_history("Eine junge Frau tritt ins Licht. Etwa Mitte zwanzig, dunkles Haar,")
+        add_to_history("ruhige Augen. In ihrer Hand ein kleiner Holzknüppel — sie hält ihn")
+        add_to_history("locker, aber bereit.")
+        add_to_history("")
+        add_to_history("Sie mustert euch — dich, dann Christopher, falls er dabei ist.")
+        add_to_history("Sekunden vergehen.")
+        add_to_history("")
+        add_to_history("Dann atmet sie langsam aus und senkt den Knüppel.")
+        add_to_history("")
+        add_to_history('"Ihr seid nicht infiziert."')
+        add_to_history('Es klingt wie eine Feststellung, nicht wie eine Frage.')
+        add_to_history("")
+        add_to_history('"Emilia. Emilia Albrecht."')
+        add_to_history('Ein kurzes, knappes Nicken.')
+        add_to_history("")
+        if player_stats.get('companion') == 'christopher':
+            add_to_history('Hinter dir hörst du Christopher leise einhalten.')
+            add_to_history('Als Emilia ihn ansieht, räuspert er sich — einen Tick zu laut.')
+            add_to_history('"Christopher Thomson", sagt er. Eine Spur zu förmlich.')
+            add_to_history("")
+        add_to_history('Etwas in dir wird seltsam ruhig.')
+        add_to_history("")
+        add_to_history('Aus einem Nebenraum dringt eine ältere, warme Stimme:')
+        add_to_history('"Emilia? Wer ist da?"')
+        add_to_history("")
+        add_to_history('"Überlebende, Oma. Keine Gefahr."')
+        add_to_history('Sie sagt es leise, aber bestimmt.')
+        add_to_history("")
+        add_to_history("─" * 50)
+        add_to_history("")
+        add_to_history('[Tipp: "rede mit emilia" oder "rede mit helene" um mit ihnen zu reden.]')
+        add_to_history('[Tipp: "untersuche emilia" oder "untersuche helene" für eine Beschreibung.]')
+        add_to_history("")
+
+    # Friedhof Aftermath-Beschreibung überschreiben
+    if current_room == 'friedhof' and friedhof_event_abgeschlossen:
+        visited_rooms_desc.discard('friedhof')
+
+    # Friedhof Boss — Der Verschlinger taucht zum ersten Mal auf
+    if current_room == 'friedhof' and not friedhof_boss_intro_gezeigt and not friedhof_event_abgeschlossen:
+        friedhof_boss_intro_gezeigt = True
+        add_to_history("")
+        add_to_history("═" * 50)
+        add_to_history("")
+        add_to_history("Die Erde bricht auf.")
+        add_to_history("")
+        add_to_history("Nicht langsam. Nicht mit Vorwarnung.")
+        add_to_history("Ein Ruck — und der Boden unter dem alten Eichenbaum")
+        add_to_history("explodiert nach oben, schwarze Erde und zersplitterte")
+        add_to_history("Grabsteine schleudern in alle Richtungen.")
+        add_to_history("")
+        add_to_history("Was aufsteigt ist drei Meter groß. Dann vier.")
+        add_to_history("")
+        add_to_history("Es ist schwarz. Nicht dunkel — schwarz wie Teer,")
+        add_to_history("wie Öl das im Mondlicht schimmert. Seine Oberfläche")
+        add_to_history("bewegt sich — pulsiert — als wäre das, was es ist,")
+        add_to_history("noch nicht ganz fertig damit, Form zu werden.")
+        add_to_history("Tendrilen schlingen sich aus seiner Masse heraus,")
+        add_to_history("kosten die Luft, ziehen sich wieder zurück.")
+        add_to_history("")
+        add_to_history("Keine Augen. Nur ein aufgerissenes Maul, randvoll")
+        add_to_history("mit Zähnen die keine Zähne sein sollten — zu viele,")
+        add_to_history("zu groß, in Winkeln die keine Anatomie erlaubt.")
+        add_to_history("")
+        add_to_history("Und dann — die Stimmen.")
+        add_to_history("")
+        add_to_history("Aus seiner Brust. Gedämpft, verzerrt, gebrochen:")
+        add_to_history("Menschliche Stimmen. Dutzende davon. Alle gleichzeitig.")
+        add_to_history("Alle schreien.")
+        add_to_history("")
+        add_to_history("Der Verschlinger.")
+        add_to_history("")
+        add_to_history("═" * 50)
+        add_to_history("")
+        add_to_history('[Greife an: "greife an" / "töte verschlinger" / "schlag verschlinger"]')
+        add_to_history('[WARNUNG: Alleine ist dieser Kampf nicht zu gewinnen.]')
+        add_to_history("")
+        start_combat_music()
+        player_stats['in_combat'] = True
+        return
+
     # Gegner im Raum?
     if room.get('enemy'):
         enemy_key = room['enemy']
@@ -3498,6 +3731,12 @@ def save_game():
         'skyscraper1_rezeption_untersucht': skyscraper1_rezeption_untersucht,
         'christopher_getroffen': christopher_getroffen,
         'christopher_dialog_index': christopher_dialog_index,
+        'emilia_getroffen': emilia_getroffen,
+        'emilia_dialog_index': emilia_dialog_index,
+        'helene_dialog_index': helene_dialog_index,
+        'friedhof_boss_intro_gezeigt': friedhof_boss_intro_gezeigt,
+        'friedhof_event_abgeschlossen': friedhof_event_abgeschlossen,
+        'christopher_verletzt': christopher_verletzt,
         'item_charges': {ik: idef.charge for ik, idef in ITEM_DEFS.items() if idef.max_charge >= 0},
         'scored_items': list(scored_items),
         'scored_kills': list(scored_kills),
@@ -3523,6 +3762,8 @@ def restore_game():
     global krankenhaus_schrank_geschoben, numpad_nutzen, coffeeshop_tür_auf, gasse_ende_untersucht
     global skyscraper1_rezeption_untersucht
     global christopher_getroffen, christopher_dialog_index
+    global emilia_getroffen, emilia_dialog_index, helene_dialog_index
+    global friedhof_boss_intro_gezeigt, friedhof_event_abgeschlossen, christopher_verletzt
     global scored_items, scored_kills
     try:
         with open(SAVE_FILE, 'r', encoding='utf-8') as f:
@@ -3568,6 +3809,12 @@ def restore_game():
     skyscraper1_rezeption_untersucht = data.get('skyscraper1_rezeption_untersucht', False)
     christopher_getroffen = data.get('christopher_getroffen', False)
     christopher_dialog_index = data.get('christopher_dialog_index', 0)
+    emilia_getroffen = data.get('emilia_getroffen', False)
+    emilia_dialog_index = data.get('emilia_dialog_index', 0)
+    helene_dialog_index = data.get('helene_dialog_index', 0)
+    friedhof_boss_intro_gezeigt = data.get('friedhof_boss_intro_gezeigt', False)
+    friedhof_event_abgeschlossen = data.get('friedhof_event_abgeschlossen', False)
+    christopher_verletzt = data.get('christopher_verletzt', False)
     # Puzzle-Übergänge anhand der geladenen Flags rekonstruieren.
     apply_bibliothek_bookshelf_state()
     apply_krankenhaus_geheimlabor_state()
@@ -3741,25 +3988,31 @@ def process_command(command):
         return
     
     cmd = command.lower().strip()
-    raw_cmd = cmd  # vor Truncation — für Godmode-Teleport und ähnliches
+    raw_cmd = cmd  # Rohbefehl vor der Wort-Auflösung — für Godmode-Teleport und ähnliches
 
-    # === 9-Letter Truncation ===
-    # Lange IDs (z.B. keycard_armband_lvl1/2/3) teilen die ersten 9 Zeichen („keycard_a“).
-    # Ohne zusätzliche Logik bleibt der Token dann kein gültiger Schlüssel — „nimm“ schlägt fehl.
+    # === Wort-Auflösung (KEIN Längen-Limit) ===
+    # Verben, Kommandos und IDs werden in voller Länge ausgewertet — es wird
+    # NICHTS mehr nach dem 9. Zeichen abgeschnitten. Zusammengesetzte deutsche
+    # Verben und lange IDs bleiben dadurch vollständig erhalten.
+    # Tippt der Spieler einen eindeutigen Präfix einer langen ID, wird er aufgelöst.
     raw_words = cmd.split()
-    # KNOWN_VERBS nie kürzen – Befehle wie „untersuchen" (11 Zeichen) müssen erhalten bleiben.
-    words = [w if w in KNOWN_VERBS else w[:9] for w in raw_words]
+    words = list(raw_words)
     room = rooms.get(current_room, {})
     room_items = room.get('items', [])
     all_keys = set(ITEM_DEFS.keys()) | set(weapons.keys()) | set(room_items) | set(player_inventory)
     resolved_words = []
-    for wi, w in enumerate(words):
-        rw = raw_words[wi]
-        # Vollständige interne ID (auch wenn länger als 9 Zeichen)
-        if rw in all_keys:
-            resolved_words.append(rw)
+    for w in words:
+        # Vollständige interne ID hat immer Vorrang (egal wie lang).
+        if w in all_keys:
+            resolved_words.append(w)
             continue
-        matches = [k for k in all_keys if k[:9] == w and k != w]
+        # Bekannte Verben und Richtungsabkürzungen NIEMALS durch Präfix-Matching
+        # ersetzen — sonst wird z.B. 'w' zu 'wasser' und 'n' zu 'notizen'.
+        if w in KNOWN_VERBS:
+            resolved_words.append(w)
+            continue
+        # Präfix-Auflösung über das KOMPLETTE eingegebene Wort (nicht nur 9 Zeichen).
+        matches = [k for k in all_keys if k != w and k.startswith(w)]
         if len(matches) == 1:
             resolved_words.append(matches[0])
         elif len(matches) > 1:
@@ -3853,7 +4106,7 @@ def enemy_target_matches(t, enemy_key, enemy):
     - Vollnamen (z.B. 'mutierter labor leiter')
     - einzelne Namens-Wörter (z.B. 'leiter', 'labor', 'mutierter')
     - durch Bindestrich verbundene Teilnamen (z.B. 'labor-leiter')
-    - durch die 9-Zeichen-Kürzung entstandene Präfixe (z.B. 'labor-lei')
+    - beliebige Präfixe der Namens-Tokens (z.B. 'labor-lei')
     """
     t = t.lower().strip()
     if not t:
@@ -3873,7 +4126,7 @@ def enemy_target_matches(t, enemy_key, enemy):
     def _token_ok(tok):
         if tok in all_tokens:
             return True
-        # Präfix-Match: mindestens 3 Zeichen (fängt 9-Zeichen-Kürzungen ab)
+        # Präfix-Match: mindestens 3 Zeichen (tolerante Teil-Eingaben)
         if len(tok) >= 3 and any(w.startswith(tok) for w in all_tokens):
             return True
         return False
@@ -3947,12 +4200,30 @@ def resolve_attack(weapon, enemy, target):
     else:
         damage = weapon['damage'][1]
 
+    # Zombie-Hure ist gegen alle Waffen nahezu immun
+    if enemy.get('immune_to_weapons') and not player_stats.get('godmode'):
+        damage = 1
+        add_to_history("Dein Angriff prallt wirkungslos ab!")
+        add_to_history("Ihr Fleisch ist wie Beton. Normale Waffen richten hier nichts aus.")
+        add_to_history("Vielleicht gibt es eine andere Schwachstelle...")
+
+    # Emilia's Liebeskraft — Schadens-Bonus wenn sie folgt
+    elif player_stats.get('emilia_following') and not player_stats.get('godmode'):
+        love_bonus = 10
+        damage += love_bonus
+        add_to_history(f"Emilias Nähe treibt dich an. +{love_bonus} Schaden!")
+
     enemy['health'] -= damage
-    add_to_history(get_enemy_damage_reaction(damage, enemy['health'], enemy['max_health']))
+    if not enemy.get('immune_to_weapons') or player_stats.get('godmode'):
+        add_to_history(get_enemy_damage_reaction(damage, enemy['health'], enemy['max_health']))
     add_to_history(f"Zustand: {get_enemy_health_description(enemy['health'], enemy['max_health'])}")
 
     if enemy['health'] <= 0:
-        _resolve_enemy_defeat(enemy, target, room)
+        if target == 'zombie_hure':
+            # Zombie-Hure stirbt nur durch Tangazieher — godmode-Ausnahme
+            _resolve_enemy_defeat(enemy, target, room)
+        else:
+            _resolve_enemy_defeat(enemy, target, room)
     else:
         enemy_counterattack(enemy, target)
 
@@ -3981,6 +4252,13 @@ def enemy_counterattack(enemy, enemy_key=None):
     add_to_history(f"{enemy['name']} greift an!")
     add_to_history(get_damage_reaction(base_damage, player_stats['health'] - base_damage))
     player_stats['health'] -= base_damage
+
+    # Helene's Kräuterheilung — mildert Schaden im Kampf wenn sie folgt
+    if player_stats.get('helene_following') and not player_stats.get('godmode') and player_stats['health'] > 0:
+        helene_heal = 8
+        player_stats['health'] = min(100, player_stats['health'] + helene_heal)
+        add_to_history(f"Helene versorgt dich sofort. +{helene_heal} HP")
+
     add_to_history("")
     if player_stats['health'] <= 0:
         _handle_player_death()
@@ -4171,11 +4449,329 @@ def grant_enemy_loot_on_death(enemy_key):
             bucket.append(loot)
             add_to_history("")
             add_to_history(f"Am Boden liegt nun ein {get_item_name(loot)}.")
+    elif enemy_key == 'zombie_hure' and current_room == 'sex_dungeon':
+        loot = 'tanga_schlüssel'
+        bucket = room.setdefault('items', [])
+        if loot not in bucket:
+            bucket.append(loot)
+            add_to_history("")
+            add_to_history("Zwischen den Überresten liegt ein blutiger TANGA-SCHLÜSSEL.")
 
 
 # ============================================================
 # BEGLEITER-SYSTEM
 # ============================================================
+
+def trigger_friedhof_boss_fight():
+    """Scripted Friedhof Boss Sequence.
+    
+    Prüft ob alle Begleiter anwesend sind.
+    Ohne alle drei → dramatischer Solo-Tod.
+    Mit allen drei → vollständige Sequenz inkl. Helenes Tod,
+    Sieg, Entführung Emilias und Christophers Verstümmelung."""
+    global friedhof_event_abgeschlossen, christopher_verletzt
+
+    comp            = player_stats.get('companion')
+    emilia_f        = player_stats.get('emilia_following', False)
+    helene_f        = player_stats.get('helene_following', False)
+    all_present     = (comp == 'christopher' and emilia_f and helene_f)
+
+    h = add_to_history  # shorthand
+
+    # ── SOLO-TOD (fehlende Begleiter) ──────────────────────────────────
+    if not all_present:
+        missing = []
+        if comp != 'christopher':
+            missing.append("Christopher")
+        if not emilia_f:
+            missing.append("Emilia")
+        if not helene_f:
+            missing.append("Helene")
+        h("")
+        h("═" * 50)
+        h("")
+        h("Du greifst an.")
+        h("")
+        h("Der Verschlinger wendet sich dir zu.")
+        h("Ohne Eile. Ohne Interesse.")
+        h("Du bist kein Gegner — du bist eine Lästigkeit.")
+        h("")
+        h("Seine Tendril kommt schneller als dein Auge folgen kann.")
+        h("")
+        if len(missing) == 1:
+            h(f"Ohne {missing[0]} hast du keine Chance.")
+        else:
+            h(f"Ohne {', '.join(missing[:-1])} und {missing[-1]} hast du keine Chance.")
+        h("")
+        h("Es gibt keinen Schmerz.")
+        h("Nur Dunkelheit.")
+        h("")
+        h("═" * 50)
+        h("")
+        player_stats['health'] = 0
+        _handle_player_death()
+        return
+
+    # ── VOLLSTÄNDIGE SEQUENZ ────────────────────────────────────────────
+
+    # ── PHASE 1: DER KAMPF BEGINNT ──────────────────────────────────────
+    h("")
+    h("═" * 50)
+    h("")
+    h("Die Gruppe steht.")
+    h("")
+    h("Christopher links von dir — die Knöchel weiß um sein Messer.")
+    h("Emilia rechts — ruhig, konzentriert, gefährlicher als sie aussieht.")
+    h("Helene hinter euch — ihr Kräuterbeutel eng an die Brust gedrückt.")
+    h("")
+    h('"Zusammen", sagt Christopher.')
+    h("Nicht laut. Er muss es nicht laut sagen.")
+    h("")
+    h("Der Verschlinger schreit.")
+    h("")
+    h("Nicht mit einem Maul. Mit Dutzenden.")
+    h("Die Stimmen in seiner Brust kreischen alle gleichzeitig auf —")
+    h("menschliche Stimmen, verzerrt bis zur Unkenntlichkeit,")
+    h("und dann stürmt er vor.")
+    h("")
+    h("Er ist SCHNELL.")
+    h("")
+    h("Für etwas seiner Größe ist es obszön — ein schwarzer Blitz")
+    h("aus Teer und Sehnen der durch eure Formation bricht wie durch Papier.")
+    h("")
+    h("Christopher weicht aus. Emilia rollt zur Seite.")
+    h("Du springst zurück.")
+    h("Helene bleibt stehen.")
+    h("")
+    h('"HELENE!"')
+    h("")
+    h("Eine Tendril peitscht durch die Luft — und verfehlt sie knapp.")
+    h("Knapp. Haarscharf.")
+    h("")
+    h("Ihr greift an.")
+    h("")
+    h("Christophers Messer findet schwarzes Fleisch — es zischt dort")
+    h("wo es trifft, wie Säure auf Metall. Der Verschlinger brüllt.")
+    h("Emilia trifft ihn mit einem Stein an der Seite seines Mauls.")
+    h("Du greifst zu allem was du hast und schlägst zu.")
+    h("")
+    h("Er trifft zurück.")
+    h("")
+    h("Die Tendril erwischt Christopher quer über die Brust — er fliegt")
+    h("drei Meter zurück, keucht, steht wieder auf.")
+    h("Eine andere trifft dich. Rippen. Luft weg. Weitermachen.")
+    h("Emilia schreit kurz auf — Blut an ihrer Schulter — und kämpft weiter.")
+    h("")
+    h("Minuten vergehen. Eine Ewigkeit.")
+    h("")
+
+    # ── PHASE 2: HELENES TOD ────────────────────────────────────────────
+    h("Dann — ein Laut den ihr nie vergessen werdet.")
+    h("")
+    h("Ein Reißen.")
+    h("Nass. Tief. Unaufhaltsam.")
+    h("")
+    h("Die Tendril trifft Helene an der linken Seite —")
+    h("trifft sie nicht, reißt DURCH sie.")
+    h("")
+    h("Die schwarze Masse wickelt sich um ihre Hüfte und ZIEHT.")
+    h("")
+    h("Helenes Schrei beginnt als Schrei.")
+    h("Er endet als etwas anderes.")
+    h("Als Luft aus Lungen, die es nicht mehr geben sollte.")
+    h("Als ein Laut den der menschliche Körper nicht machen kann —")
+    h("und dann doch macht, am Ende von allem.")
+    h("")
+    h("Du siehst zu viel.")
+    h("")
+    h("Du siehst wie ihr Oberkörper sich vom Unterkörper trennt —")
+    h("nicht sauber, nicht schnell, kein Schnitt.")
+    h("Ein Reißen. Ein Herausreißen. Schicht für Schicht, Faser für Faser.")
+    h("Ihre Wirbelsäule bricht mit einem Knacken das durch das")
+    h("gesamte Gräberfeld hallt — ein Laut wie brechender Ast,")
+    h("aber feuchter, schwerer, endgültiger.")
+    h("")
+    h("Ihre Rippen. Bloß. Weiß. Splitternackend im Mondlicht.")
+    h("Eine Lunge die noch atmet — noch pumpt — noch kämpft")
+    h("für einen Körper der nicht mehr da ist.")
+    h("Ihre Eingeweide folgen der Schwerkraft,")
+    h("dampfend in der Nachtluft.")
+    h("")
+    h("Der Verschlinger frisst.")
+    h("")
+    h("Nicht schluckt. FRISST.")
+    h("Seine Tendrilen durchsuchen was von ihr übrig ist,")
+    h("zerren Stücke auseinander, schlürfen, reißen, zermalmen.")
+    h("Das Geräusch ist das schlimmste was du je gehört hast.")
+    h("")
+    h("Was bleibt von Helene liegt auf dem Boden des Friedhofs.")
+    h("Ihre Augen sind offen.")
+    h("Sie sehen zur Seite.")
+    h("Sie sehen Emilia an.")
+    h("Sie sehen sie noch an als das Licht erlischt.")
+    h("")
+    h("Emilia gibt keinen Laut von sich.")
+    h("")
+    h("Sie steht einfach. Das Gesicht weiß wie die Grabsteine.")
+    h("Und dann kehrt die Farbe zurück —")
+    h("aber es ist das falsche Rot.")
+    h("")
+
+    # ── PHASE 3: WUTSTURM & SIEG ────────────────────────────────────────
+    h("Was danach geschieht hat keine Ordnung.")
+    h("Keine Strategie. Keinen Plan.")
+    h("")
+    h("Christopher stürmt vor — mit dem Messer, dann mit den Fäusten,")
+    h("dann mit dem ganzen Körper. Er schreit dabei.")
+    h("Emilia schreit — ein Laut der nicht nach ihr klingt —")
+    h("und trommelt auf die schwarze Masse ein ohne aufzuhören.")
+    h("Du greifst zu allem was du hast.")
+    h("")
+    h("Alles.")
+    h("")
+    h("Der Verschlinger trifft euch. Er verletzt euch.")
+    h("Ihr kämpft weiter.")
+    h("Er kämpft noch. Ihr kämpft immer noch.")
+    h("")
+    h("Irgendwann gibt er nach.")
+    h("")
+    h("Nicht dramatisch. Nicht filmreif.")
+    h("Er bricht zusammen — langsam, wie ein Gebäude das seinen")
+    h("letzten tragenden Pfeiler verliert.")
+    h("Die schwarze Masse fließt auseinander.")
+    h("Die Stimmen in seiner Brust verstummen, eine nach der anderen.")
+    h("Bis die letzte erlischt.")
+    h("")
+    h("Er liegt still.")
+    h("")
+    h("Ihr keucht. Ihr blutet. Ihr lebt noch.")
+    h("")
+    h("═" * 50)
+    h("")
+
+    # ── PHASE 4: DER STRECKER ───────────────────────────────────────────
+    h("Emilia kniet bei dem was von Helene übrig ist.")
+    h("")
+    h("Du willst etwas sagen.")
+    h("Irgendetwas.")
+    h("")
+    h("Dann —")
+    h("")
+    h("Ein Schatten aus dem Dunkel zwischen den Grabsteinen.")
+    h("")
+    h("Zu lang.")
+    h("Zu dünn.")
+    h("Gelenke in Winkeln die keine menschlichen Gelenke haben sollten.")
+    h("")
+    h("Das Ding bewegt sich in einem einzigen Ruck —")
+    h("keine Vorwarnung, kein Geräusch —")
+    h("")
+    h("und Emilia ist weg.")
+    h("")
+    h("W E G.")
+    h("")
+    h("Weggerissen wie ein Blatt aus einer Hand.")
+    h("Eine Sekunde da, eine Sekunde nicht mehr.")
+    h("")
+    h("Sie schreit.")
+    h("Du hörst es.")
+    h("Du hörst wie das Schreien kleiner wird.")
+    h("")
+
+    # ── PHASE 5: CHRISTOPHERS OPFER ────────────────────────────────────
+    h("Christopher.")
+    h("")
+    h("Er springt hinterher.")
+    h("")
+    h("Er ist schneller als du in diesem Moment denkst.")
+    h("Er erreicht das Ding — er greift nach Emilia —")
+    h("")
+    h("Das lange Ding dreht sich.")
+    h("Nicht um. Es dreht sich, in einem Winkel der falscher ist")
+    h("als alles was du bisher gesehen hast.")
+    h("")
+    h("Es greift nach Christophers Bein.")
+    h("")
+    h("Der Ruck ist kurz.")
+    h("Das Geräusch danach ist es nicht.")
+    h("")
+    h("Ein dumpfes, nasses K N A C K E N —")
+    h("und Christopher liegt auf dem Boden des Friedhofs,")
+    h("drei Meter zurückgeschleudert.")
+    h("")
+    h("Sein Bein ist nicht mehr am richtigen Ort.")
+    h("")
+    h("Er schreit nicht sofort.")
+    h("Das ist das Schlimmste.")
+    h("Es gibt diese Sekunde — diese eine fürchterliche Sekunde —")
+    h("in der er einfach auf das schaut was mit ihm passiert ist.")
+    h("Und versteht.")
+    h("")
+    h("Dann schreit er.")
+    h("")
+    h("Das Ding geht in die Hocke neben ihm. Ganz nah. Interessiert.")
+    h("Seine Finger — zu lang, zu viele Gelenke —")
+    h("greifen nach Christophers Ohr.")
+    h("")
+    h("Du läufst los.")
+    h("")
+    h("Du kommst nicht rechtzeitig hin.")
+    h("")
+    h("Das Reißen ist nass und kurz.")
+    h("Du siehst das Ding sein Maul bewegen.")
+    h("Du siehst Christophers Gesicht wenn er versteht")
+    h("was gerade — direkt vor deinen Augen — geschieht.")
+    h("")
+    h("Dann ist das Ding weg.")
+    h("Emilia ist weg.")
+    h("")
+
+    # ── AFTERMATH ───────────────────────────────────────────────────────
+    h("═" * 50)
+    h("")
+    h("Du stehst auf einem Friedhof, zwischen den Toten.")
+    h("Mit dem was von deiner Gruppe übrig geblieben ist.")
+    h("")
+    h("Christopher lebt noch.")
+    h("Er blutet. Er zittert.")
+    h("Er schaut dich an.")
+    h("")
+    h('"Find her."')
+    h("")
+    h("Seine Zähne sind rot. Er lächelt nicht.")
+    h("")
+    h('"Find... sie."')
+    h("")
+    h("═" * 50)
+    h("")
+
+    # State-Änderungen
+    friedhof_event_abgeschlossen = True
+    christopher_verletzt = True
+    player_stats['helene_following'] = False
+    player_stats['emilia_following'] = False
+    player_stats['companion_hp'] = 20
+    player_stats['companion_stunned_turns'] = 0
+    player_stats['in_combat'] = False
+    stop_combat_resume_ambient()
+
+    h('[Helene Albrecht — Tot]')
+    h('[Emilia Albrecht — Entführt vom Strecker]')
+    h('[Christopher Thomson — Schwer verletzt, folgt dir weiter]')
+    h("")
+
+    # Credits nach dem Ende einleiten
+    global credits_pending
+    credits_pending = True
+    h("════════════════════════════════════════════")
+    h("")
+    h("                    ENDE")
+    h("")
+    h("════════════════════════════════════════════")
+    h("")
+    h("  [ ENTER drücken um die Credits zu sehen ]")
+    h("")
+
 
 def _companion_post_combat_heal():
     """Passiver HP-Regen nach einem erfolgreichen Kampf wenn Begleiter aktiv."""
@@ -4183,7 +4779,10 @@ def _companion_post_combat_heal():
     if comp and comp != 'christopher_waiting' and player_stats['health'] < 100:
         heal = 5
         player_stats['health'] = min(100, player_stats['health'] + heal)
-        add_to_history(f"Christopher versorgt deine Wunden. +{heal} HP")
+        if christopher_verletzt:
+            add_to_history(f"Christopher verbindet deine Wunden, so gut er es mit einer Hand kann. +{heal} HP")
+        else:
+            add_to_history(f"Christopher versorgt deine Wunden. +{heal} HP")
         add_to_history("")
 
 
@@ -4203,7 +4802,10 @@ def _companion_intercept(base_damage):
 
     # Begleiter fängt jeden Angriff ab und halbiert den Schaden (deterministisch)
     reduced = max(1, int(base_damage * 0.5))
-    add_to_history("Christopher reißt den Feind zur Seite!")
+    if christopher_verletzt:
+        add_to_history("Christopher schleppt sich zwischen dich und den Feind!")
+    else:
+        add_to_history("Christopher reißt den Feind zur Seite!")
     add_to_history(f"[Begleiter-Schutz: Schaden {base_damage} → {reduced}]")
     add_to_history("")
 
@@ -4212,7 +4814,10 @@ def _companion_intercept(base_damage):
 
     if player_stats['companion_hp'] <= 0:
         player_stats['companion_stunned_turns'] = 3
-        add_to_history("Christopher ist verletzt und für kurze Zeit außer Gefecht!")
+        if christopher_verletzt:
+            add_to_history("Christopher bricht zusammen — sein Körper gibt nach. Er braucht eine Pause!")
+        else:
+            add_to_history("Christopher ist verletzt und für kurze Zeit außer Gefecht!")
         add_to_history("")
 
     return reduced
@@ -4237,6 +4842,8 @@ def _handle_player_death():
     player_stats['companion'] = None
     player_stats['companion_hp'] = 100
     player_stats['companion_stunned_turns'] = 0
+    player_stats['emilia_following'] = False
+    player_stats['helene_following'] = False
 
     for ek in enemies:
         enemies[ek]['health'] = enemies[ek]['max_health']
@@ -4260,6 +4867,9 @@ def _resolve_enemy_defeat(enemy, target, room):
     if target == 'zombie':
         add_to_history("Der Zombie zuckt ein letztes Mal.")
         add_to_history("Schwarze Flüssigkeit sickert aus dem zerschmetterten Schädel.")
+    elif target == 'zombie_hure':
+        add_to_history("Die Zombie-Hure zuckt ein letztes Mal und liegt still.")
+        add_to_history("Der Raum riecht schlimmer als zuvor. Aber er ist sicher.")
     else:
         add_to_history(f"{enemy['name']} sackt schwer zusammen.")
     add_to_history("")
@@ -4512,8 +5122,192 @@ menu_buttons = [
     MenuButton("NEUES SPIEL", (WIDTH // 2, 300), start_game),
     MenuButton("LADEN",       (WIDTH // 2, 390), load_game_from_menu),
     MenuButton("OPTIONEN",    (WIDTH // 2, 480), show_options),
-    MenuButton("BEENDEN",     (WIDTH // 2, 570), quit_game),
+    MenuButton("CREDITS",     (WIDTH // 2, 570), show_credits),
+    MenuButton("BEENDEN",     (WIDTH // 2, 660), quit_game),
 ]
+
+
+def draw_credits(current_time):
+    """Langsam scrollende Credits-Seite mit rotem Atmosphären-Stil."""
+    global current_state
+
+    SCROLL_SPEED = 0.055   # Pixel pro Millisekunde
+    elapsed = max(0, current_time - _credits_start_time)
+
+    w, h = screen.get_width(), screen.get_height()
+    cx = w // 2
+
+    # Schwarzer Hintergrund + leichtes Menu-Bg
+    _draw_menu_bg(screen)
+    dark = pygame.Surface((w, h))
+    dark.fill((0, 0, 0))
+    dark.set_alpha(180)
+    screen.blit(dark, (0, 0))
+
+    # ── Fonts ──────────────────────────────────────────────────────────
+    f_huge    = get_scaled_font(72)
+    f_title   = get_scaled_font(40)
+    f_section = get_scaled_font(30)
+    f_name    = get_scaled_font(36)
+    f_small   = get_scaled_font(22)
+    f_quote   = get_scaled_font(26)
+    f_hint    = get_scaled_font(20)
+
+    # ── Farbpalette ────────────────────────────────────────────────────
+    C_RED   = BLOOD_RED
+    C_DRED  = DEEP_RED
+    C_GOLD  = (210, 175, 80)
+    C_WHITE = (230, 225, 220)
+    C_GRAY  = (160, 150, 140)
+    C_DIM   = (110, 100, 90)
+
+    # ── line-heights ───────────────────────────────────────────────────
+    LH = {
+        'huge': 80, 'title': 46, 'section': 36,
+        'name': 42, 'small': 28, 'quote': 32,
+        'divider': 4, 'spacer': 0,
+    }
+    FM = {
+        'huge': f_huge, 'title': f_title, 'section': f_section,
+        'name': f_name, 'small': f_small, 'quote': f_quote,
+    }
+
+    # ── Credits-Einträge  (typ, text, Farbe, gap_davor) ────────────────
+    entries = [
+        # Kopf – Text kommt direkt von unten rein (kein großer Spacer)
+        ('spacer',   '',                                   C_WHITE,  20),
+        ('huge',     'DEAD  WORLD',                        C_RED,     0),
+        ('small',    'Ein Spiel über das Ende –',           C_GRAY,   30),
+        ('small',    'und was danach kommt.',               C_GRAY,   10),
+        ('divider',  '',                                   C_DRED,   50),
+
+        ('section',  'ENTWICKELT VON',                     C_GOLD,   65),
+        ('name',     'Camilo',                             C_WHITE,  25),
+        ('name',     'Jannik',                             C_WHITE,  12),
+        ('divider',  '',                                   C_DRED,   55),
+
+        ('section',  'SPIELDESIGN',                        C_GOLD,   65),
+        ('name',     'Camilo',                             C_WHITE,  25),
+        ('name',     'Jannik',                             C_WHITE,  12),
+        ('divider',  '',                                   C_DRED,   55),
+
+        ('section',  'PROGRAMMIERUNG',                     C_GOLD,   65),
+        ('name',     'Camilo',                             C_WHITE,  25),
+        ('name',     'Jannik',                             C_WHITE,  12),
+        ('divider',  '',                                   C_DRED,   55),
+
+        ('section',  'STORY & SCHREIBEN',                  C_GOLD,   65),
+        ('name',     'Camilo',                             C_WHITE,  25),
+        ('name',     'Jannik',                             C_WHITE,  12),
+        ('divider',  '',                                   C_DRED,   55),
+
+        ('section',  'GRAFIK & INTERFACE',                 C_GOLD,   65),
+        ('name',     'Camilo',                             C_WHITE,  25),
+        ('name',     'Jannik',                             C_WHITE,  12),
+        ('divider',  '',                                   C_DRED,   55),
+
+        ('section',  'MUSIK & SOUND',                      C_GOLD,   65),
+        ('title',    'Julius Galla',                       C_WHITE,  22),
+        ('small',    '"Atmosphere Horror" (Loop)',          C_GRAY,   12),
+        ('divider',  '',                                   C_DRED,   55),
+
+        ('section',  'TECHNOLOGIE',                        C_GOLD,   65),
+        ('title',    'Python 3  ·  Pygame',                C_WHITE,  22),
+        ('divider',  '',                                   C_DRED,   55),
+
+        ('section',  'CHARAKTERE',                         C_GOLD,   65),
+        ('small',    'Albert  ·  Christopher Thomson',     C_WHITE,  22),
+        ('small',    'Emilia Albrecht  ·  Helene Albrecht',C_WHITE,  12),
+        ('divider',  '',                                   C_DRED,   55),
+
+        ('section',  'BESONDERER DANK',                    C_GOLD,   65),
+        ('small',    'An alle, die trotzdem weitermachen.',C_GRAY,   22),
+        ('small',    'An jeden Überlebenden.',             C_GRAY,   12),
+        ('small',    'Und an Emilia –',                    C_GRAY,   12),
+        ('small',    'wo auch immer du bist.',             C_GRAY,    8),
+        ('divider',  '',                                   C_DRED,   55),
+
+        ('quote',    '"Alleine ist man draußen',           C_DIM,    65),
+        ('quote',    ' so gut wie tot."',                  C_DIM,    10),
+        ('small',    '— Christopher Thomson',              C_GRAY,   20),
+        ('divider',  '',                                   C_DRED,   55),
+
+        ('title',    'DEAD WORLD',                         C_RED,    65),
+        ('small',    '© 2026  Camilo & Jannik',            C_GRAY,   20),
+        ('small',    'Alle Rechte vorbehalten.',           C_GRAY,   10),
+
+        ('spacer',   '',                                   C_WHITE, 120),
+    ]
+
+    total_height = sum(e[3] + LH.get(e[0], 28) for e in entries)
+    scroll_y = elapsed * SCROLL_SPEED
+
+    # ── Einträge zeichnen ─────────────────────────────────────────────
+    # y startet direkt am unteren Bildschirmrand (kein künstlicher Puffer)
+    y = float(h - scroll_y)
+    FADE = 70  # px Fade-Zone oben & unten
+
+    for (typ, text, color, gap) in entries:
+        y += gap
+        lh = LH.get(typ, 28)
+        cy_line = y + lh * 0.5
+
+        # Nur überspringen wenn komplett außerhalb + großem Puffer
+        if cy_line + lh < -20:
+            y += lh
+            continue
+        if cy_line > h + 200:
+            y += lh
+            continue
+
+        if typ == 'divider':
+            if 0 <= cy_line <= h:
+                lw = 200
+                pygame.draw.line(screen, color,
+                                 (cx - lw, int(cy_line)),
+                                 (cx + lw, int(cy_line)), 1)
+            y += lh
+            continue
+
+        if typ == 'spacer':
+            y += lh
+            continue
+
+        font = FM.get(typ, f_small)
+        surf = _render_text(font, text, color)
+        rect = surf.get_rect(center=(cx, int(cy_line)))
+
+        # Sanftes Alpha-Fade oben & unten
+        if cy_line < FADE:
+            surf.set_alpha(max(0, int(255 * cy_line / FADE)))
+        elif cy_line > h - FADE:
+            surf.set_alpha(max(0, int(255 * (h - cy_line) / FADE)))
+        else:
+            surf.set_alpha(255)
+
+        screen.blit(surf, rect)
+        y += lh
+
+    # ── Schwarze Fade-Streifen oben & unten (einfache Rechtecke) ───────
+    fade_h = 60
+    for iy in range(fade_h):
+        alpha = 255 - int(255 * iy / fade_h)
+        s = pygame.Surface((w, 1))
+        s.fill((0, 0, 0))
+        s.set_alpha(alpha)
+        screen.blit(s, (0, iy))                   # oben
+        screen.blit(s, (0, h - 1 - iy))           # unten
+
+    # ── ESC-Hinweis – gut sichtbar ────────────────────────────────────
+    pulse = int(180 + 50 * math.sin(current_time * 0.002))
+    hint_color = (pulse, int(pulse * 0.18), int(pulse * 0.12))
+    hint = _render_text(f_hint, "ESC  |  LEERTASTE  —  Zurück zum Menü", hint_color)
+    screen.blit(hint, hint.get_rect(center=(cx, h - 22)))
+
+    # Auto-Zurück wenn fertig gescrollt
+    if scroll_y > total_height + h:
+        current_state = MENU
+        _start_menu_music()
 
 
 def draw_menu(current_time):
@@ -4536,10 +5330,11 @@ def draw_menu(current_time):
     _draw_gradient_line(screen, cx, scale_y(200), scale(120), DARK_RED)
 
     # Buttons positionieren
-    menu_buttons[0].pos = (cx, scale_y(280))
-    menu_buttons[1].pos = (cx, scale_y(370))
-    menu_buttons[2].pos = (cx, scale_y(460))
-    menu_buttons[3].pos = (cx, scale_y(550))
+    menu_buttons[0].pos = (cx, scale_y(255))
+    menu_buttons[1].pos = (cx, scale_y(330))
+    menu_buttons[2].pos = (cx, scale_y(405))
+    menu_buttons[3].pos = (cx, scale_y(480))
+    menu_buttons[4].pos = (cx, scale_y(555))
     menu_buttons[1].disabled = not os.path.exists(SAVE_FILE)
 
     # Hover (Maus + Tastatur)
@@ -4670,6 +5465,9 @@ def main():
                         current_state = _options_return_state
                         if current_state == MENU:
                             _start_menu_music()
+                    elif current_state == CREDITS:
+                        current_state = MENU
+                        _start_menu_music()
                     elif current_state == GAME:
                         current_state = PAUSED
                     elif current_state == PAUSED:
@@ -4680,6 +5478,9 @@ def main():
 
                 # State-spezifische Keydown-Handler
                 elif event.key == pygame.K_SPACE and current_state == INTRO:
+                    current_state = MENU
+                    _start_menu_music()
+                elif event.key in (pygame.K_SPACE, pygame.K_RETURN) and current_state == CREDITS:
                     current_state = MENU
                     _start_menu_music()
                 elif current_state == MENU:
@@ -4705,6 +5506,9 @@ def main():
                     elif current_state == PAUSED:
                         for button in pause_buttons:
                             button.click()
+                    elif current_state == CREDITS:
+                        current_state = MENU
+                        _start_menu_music()
         
         # State-basiertes Rendering
         if current_state == INTRO:
@@ -4722,6 +5526,8 @@ def main():
             draw_game(current_time)
         elif current_state == PAUSED:
             draw_pause_menu(current_time)
+        elif current_state == CREDITS:
+            draw_credits(pygame.time.get_ticks())
         
         pygame.display.flip()
         clock.tick(FPS)
