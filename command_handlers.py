@@ -1301,6 +1301,66 @@ def handle_look_map(cmd):
 
 
 # ========================
+# GODMODE
+# ========================
+def handle_godmode(cmd, raw_cmd=None):
+    """Handles: godmode (toggle), tp/teleport [raum] (nur im Godmode)
+
+    raw_cmd: ungekürzte Version des Befehls (vor dem 9-Zeichen-Trimmer),
+             damit Raumnamen wie 'home_depot_sw' unversehrt ankommen.
+    """
+    if raw_cmd is None:
+        raw_cmd = cmd
+
+    # --- Godmode ein-/ausschalten ---
+    if cmd == 'godmode':
+        _game.player_stats['godmode'] = not _game.player_stats.get('godmode', False)
+        if _game.player_stats['godmode']:
+            _h("╔══════════════════════════════════╗")
+            _h("║  *** GODMODE AKTIVIERT ***       ║")
+            _h("║  One-Hit-Kills aktiv.            ║")
+            _h("║  Kein Gegenschaden.              ║")
+            _h("║  Teleport: tp [raumname]         ║")
+            _h("╚══════════════════════════════════╝")
+        else:
+            _h("[ Godmode deaktiviert. ]")
+        _h("")
+        return True
+
+    # --- Teleport (nur im Godmode) ---
+    if raw_cmd.startswith('tp ') or raw_cmd.startswith('teleport '):
+        if not _game.player_stats.get('godmode'):
+            _h("Unbekannter Befehl. (Godmode nicht aktiv)")
+            _h("")
+            return True
+        dest = raw_cmd.split(' ', 1)[1].strip()
+        if dest not in _game.rooms:
+            # Versuche Teilübereinstimmung
+            matches = [k for k in _game.rooms if dest in k]
+            if len(matches) == 1:
+                dest = matches[0]
+            elif len(matches) > 1:
+                _h("Mehrdeutig. Meinst du einen davon?")
+                for m in matches:
+                    _h(f"  {m} — {_game.rooms[m].get('name', m)}")
+                _h("")
+                return True
+            else:
+                _h(f"Raum '{dest}' nicht gefunden.")
+                _h("Tipp: Nutze den internen Raumnamen (z.B. 'corridor', 'storage', 'park').")
+                _h("")
+                return True
+        _game.current_room = dest
+        room_name = _game.rooms[dest].get('name', dest)
+        _h(f"[GODMODE] Teleportiert nach: {room_name}")
+        _h("")
+        _game.describe_room()
+        return True
+
+    return False
+
+
+# ========================
 # REACTIVE PARSER (unknown commands)
 # ========================
 def handle_unknown_command(cmd, words):

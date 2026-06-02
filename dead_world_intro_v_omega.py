@@ -303,6 +303,8 @@ player_stats = {
     'companion': None,            # None | 'christopher'
     'companion_hp': 100,          # Begleiter-Lebenspunkte (0 = betäubt)
     'companion_stunned_turns': 0, # Züge bis Begleiter wieder helfen kann
+    # Cheat
+    'godmode': False,             # One-Hit-Kills, kein Gegenschaden, Teleport
 }
 
 # === CLASSIC MECHANICS: View Mode, Score, Ambiguity ===
@@ -3504,6 +3506,7 @@ def process_command(command):
         return
     
     cmd = command.lower().strip()
+    raw_cmd = cmd  # vor Truncation — für Godmode-Teleport und ähnliches
 
     # === 9-Letter Truncation ===
     # Lange IDs (z.B. keycard_armband_lvl1/2/3) teilen die ersten 9 Zeichen („keycard_a“).
@@ -3568,6 +3571,7 @@ def process_command(command):
             add_to_history(_tmsg)
 
     # === DISPATCHER — delegiert an command_handlers.py ===
+    if command_handlers.handle_godmode(cmd, raw_cmd): return
     if command_handlers.handle_help(cmd): return
     if command_handlers.handle_movement(cmd): return
     if command_handlers.handle_item_commands(cmd): return
@@ -3701,7 +3705,12 @@ def resolve_attack(weapon, enemy, target):
     Schaden = oberer Wert der Waffen-Range. Bei besiegtem Gegner uebernimmt
     _resolve_enemy_defeat, ansonsten schlaegt der Gegner direkt zurueck."""
     room = rooms[current_room]
-    damage = weapon['damage'][1]
+
+    if player_stats.get('godmode'):
+        damage = enemy['health'] + 1
+        add_to_history("[GODMODE] Ein einziger vernichtender Treffer!")
+    else:
+        damage = weapon['damage'][1]
 
     enemy['health'] -= damage
     add_to_history(get_enemy_damage_reaction(damage, enemy['health'], enemy['max_health']))
@@ -3717,6 +3726,11 @@ def enemy_counterattack(enemy, enemy_key=None):
     """Gegner greift deterministisch zurück (kein Ausweich-Minigame).
 
     Schaden = unterer Wert der Gegner-Range, direkt angewandt."""
+    if player_stats.get('godmode'):
+        add_to_history("[GODMODE] Der Angriff prallt wirkungslos ab.")
+        add_to_history("")
+        return
+
     base_damage = enemy['damage'][0]
 
     base_damage = _companion_intercept(base_damage)

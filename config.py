@@ -195,6 +195,7 @@ KNOWN_VERBS = {
     'untersuche', 'untersuchen', 'u',
     'spreche', 'sprich', 'rede', 'red', 'grüße', 'grüß', 'hallo', 'hi',
     'folge', 'bleib', 'begleiter', 'companion',
+    'godmode', 'tp', 'teleport',
 }
 
 VERBS_NEED_OBJECT = {
