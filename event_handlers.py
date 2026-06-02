@@ -21,7 +21,7 @@ def init_event_handlers(game_module):
 # ========================
 def handle_key_repeats(current_ms):
     """Process held-key repeats for terminal input. Called every frame."""
-    if _game.prolog_shown and not _game.qte_active and _game.current_state == GAME:
+    if _game.prolog_shown and _game.current_state == GAME:
         if _game.backspace_held:
             if current_ms - _game.last_backspace_time > backspace_repeat_delay:
                 if _game.cursor_position > 0:
@@ -154,46 +154,46 @@ def handle_keydown_game(event):
         _game.enter_held = True
         _game.last_enter_time = pygame.time.get_ticks() + key_initial_delay
 
-    elif event.key == pygame.K_BACKSPACE and not _game.qte_active:
+    elif event.key == pygame.K_BACKSPACE:
         if _game.cursor_position > 0:
             _game.input_text = _game.input_text[:_game.cursor_position-1] + _game.input_text[_game.cursor_position:]
             _game.cursor_position -= 1
         _game.backspace_held = True
         _game.last_backspace_time = pygame.time.get_ticks() + backspace_initial_delay
 
-    elif event.key == pygame.K_DELETE and not _game.qte_active:
+    elif event.key == pygame.K_DELETE:
         if _game.cursor_position < len(_game.input_text):
             _game.input_text = _game.input_text[:_game.cursor_position] + _game.input_text[_game.cursor_position+1:]
         _game.delete_held = True
         _game.last_delete_time = pygame.time.get_ticks() + key_initial_delay
 
-    elif event.key == pygame.K_LEFT and _game.prolog_shown and not _game.qte_active:
+    elif event.key == pygame.K_LEFT and _game.prolog_shown:
         if _game.cursor_position > 0:
             _game.cursor_position -= 1
         _game.left_held = True
         _game.last_left_time = pygame.time.get_ticks() + key_initial_delay
 
-    elif event.key == pygame.K_RIGHT and _game.prolog_shown and not _game.qte_active:
+    elif event.key == pygame.K_RIGHT and _game.prolog_shown:
         if _game.cursor_position < len(_game.input_text):
             _game.cursor_position += 1
         _game.right_held = True
         _game.last_right_time = pygame.time.get_ticks() + key_initial_delay
 
-    elif event.key == pygame.K_PAGEUP and _game.prolog_shown and not _game.qte_active:
+    elif event.key == pygame.K_PAGEUP and _game.prolog_shown:
         _game.scroll_offset -= 10
         _game.scroll_offset = max(0, _game.scroll_offset)
 
-    elif event.key == pygame.K_PAGEDOWN and _game.prolog_shown and not _game.qte_active:
+    elif event.key == pygame.K_PAGEDOWN and _game.prolog_shown:
         _game.scroll_offset += 10
         _game.scroll_offset = min(_game.scroll_offset, _game.max_scroll)
 
-    elif event.key == pygame.K_HOME and _game.prolog_shown and not _game.qte_active:
+    elif event.key == pygame.K_HOME and _game.prolog_shown:
         _game.scroll_offset = 0
 
-    elif event.key == pygame.K_END and _game.prolog_shown and not _game.qte_active:
+    elif event.key == pygame.K_END and _game.prolog_shown:
         _game.scroll_offset = _game.max_scroll
 
-    elif event.key == pygame.K_UP and _game.prolog_shown and not _game.qte_active:
+    elif event.key == pygame.K_UP and _game.prolog_shown:
         if _game.scroll_offset == 0:
             if _game.command_history:
                 if _game.history_index == -1:
@@ -207,7 +207,7 @@ def handle_keydown_game(event):
             _game.scroll_offset -= 3
             _game.scroll_offset = max(0, _game.scroll_offset)
 
-    elif event.key == pygame.K_DOWN and _game.prolog_shown and not _game.qte_active:
+    elif event.key == pygame.K_DOWN and _game.prolog_shown:
         if _game.scroll_offset == 0:
             if _game.command_history and _game.history_index != -1:
                 _game.history_index += 1
@@ -222,14 +222,9 @@ def handle_keydown_game(event):
             _game.scroll_offset += 3
             _game.scroll_offset = min(_game.scroll_offset, _game.max_scroll)
 
-    else:
-        # QTE Mode
-        if _game.qte_active and event.unicode.upper() in ('W', 'A', 'S', 'D', 'E'):
-            _game.process_command(event.unicode.upper())
-            _game.check_qte_result()
-        # Normal input
-        elif _game.prolog_shown and not _game.qte_active and len(_game.input_text) < 60 and event.unicode.isprintable():
-            _game.input_text = _game.input_text[:_game.cursor_position] + event.unicode + _game.input_text[_game.cursor_position:]
-            _game.cursor_position += 1
+    # Normal input
+    elif _game.prolog_shown and len(_game.input_text) < 60 and event.unicode.isprintable():
+        _game.input_text = _game.input_text[:_game.cursor_position] + event.unicode + _game.input_text[_game.cursor_position:]
+        _game.cursor_position += 1
 
 

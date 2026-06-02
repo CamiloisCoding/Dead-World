@@ -237,6 +237,9 @@ numpad_nutzen = False
 #Coffeeshop Gasse
 coffeeshop_tür_auf = False
 gasse_ende_untersucht = False
+#Christopher Thomson (NPC – Coffeeshop)
+christopher_getroffen = False   # Erstkontakt bereits gezeigt?
+christopher_dialog_index = 0    # Gesprächsfortschritt
 #Skyscraper 1
 skyscraper1_rezeption_untersucht = False
 
@@ -294,9 +297,12 @@ player_stats = {
     'equipped_weapon': None,
     'weapon_type': None,  # 'ranged', 'melee', None
     'in_combat': False,
-    'fist_level': 1,              # Fäuste Level (1-5), Level-Up durch Black Flash
     'turns_since_last_meal': 0,   # Hunger tick counter
     'last_recovery_turn': 0,      # Passive recovery tracker
+    # NPC-Begleiter-System
+    'companion': None,            # None | 'christopher'
+    'companion_hp': 100,          # Begleiter-Lebenspunkte (0 = betäubt)
+    'companion_stunned_turns': 0, # Züge bis Begleiter wieder helfen kann
 }
 
 # === CLASSIC MECHANICS: View Mode, Score, Ambiguity ===
@@ -367,6 +373,8 @@ ITEM_DEFS = {
     'keycard_armband_lvl2': Item('keycard_armband_lvl2', 'Keycard-Armband (Stufe 2)', 'Ein RFID-Sicherheitsarmband mit Zugangslevel 2.', weight=1),
     'keycard_armband_lvl3': Item('keycard_armband_lvl3', 'Keycard-Armband (Stufe 3)', 'Ein RFID-Sicherheitsarmband mit höchstem Zugangslevel.', weight=1),
     'coffeeshop_schlüssel': Item('coffeeshop_schlüssel', 'Coffeeshop-Schlüssel', 'Ein kleiner Schlüssel mit einem verblassten Kaffeetassen-Anhänger. Öffnet wohl eine Tür in der Nähe.', weight=1),
+    'ak_munition': Item('ak_munition', 'AK-47 Magazin', 'Ein volles 30-Schuss-Magazin für die AK-47.', weight=1),
+    'pistolen_munition': Item('pistolen_munition', 'Pistolen-Magazin', 'Ein volles 12-Schuss-Magazin für die Pistole.', weight=1),
 }
 
 def get_item_name(key):
@@ -569,15 +577,7 @@ def spawn_chance():
         return True
     return False
 
-# FIST_LEVEL_BONUSES, weapons, food_items, enemies importiert aus config.py
-
-# QTE System
-qte_active = False
-qte_sequence = []
-qte_input = ""
-qte_start_time = 0
-# qte_duration in config.py
-qte_callback = None
+# weapons, food_items, enemies importiert aus config.py
 
 current_enemy = None
 
@@ -625,7 +625,7 @@ rooms = {
         'name': 'Lagerraum',
         'description': 'Regale umgestürzt. Konserven und Vorräte verstreut. Eine Werkbank steht in der Ecke. Hinter einem umgestürzten Regal siehst du einen TUNNEL der nach NORDEN führt.',
         'exits': {'osten': 'corridor', 'norden': 'tunnel'},
-        'items': ['medkit', 'batterien', 'messer', 'konserven']
+        'items': ['medkit', 'batterien', 'küchenmesser', 'konserven']
     },
     'laboratory': {
         'name': 'Labor',
@@ -754,8 +754,8 @@ rooms = {
     },
     'krankenhaus_straße': {#Krankenhaus
         'name': 'Krankenhaus Straße',
-        'description': 'Du stehst auf der Straße vor dem Krankenhaus. Im NORDEN führt die Straße zur westlichen Weggabelung. Im WESTEN ist der Eingang zum Krankenhaus. Nach SÜDEN geht es zur Nordseite des Home-Depot-Geländes. Über einen Schleichweg im NORDWESTEN (an der Hospital-Westseite vorbei) erreicht man die Hacienda Straße.',
-        'exits': {'norden': 'westliche_haus_gabelung', 'westen': 'krankenhaus_eingang', 'süden': 'home_depot_north', 'nordwesten': 'hacienda_straße'},
+        'description': 'Du stehst auf der Straße vor dem Krankenhaus. Im NORDEN führt die Straße zur westlichen Weggabelung. Im WESTEN ist der Eingang zum Krankenhaus. Nach SÜDEN geht es zur Nordostecke des Home-Depot-Geländes. Über einen Schleichweg im NORDWESTEN (an der Hospital-Westseite vorbei) erreicht man die Hacienda Straße.',
+        'exits': {'norden': 'westliche_haus_gabelung', 'westen': 'krankenhaus_eingang', 'süden': 'home_depot_ne', 'nordwesten': 'hacienda_straße'},
         'items': [],
         'in_development': False,
         'spawn_chance': True,
@@ -1122,9 +1122,9 @@ rooms = {
     },
     'krankenhaus_schließfach_raum': {#Krankenhaus
         'name': 'Krankenhaus - Schließfach Raum',
-        'description': 'Schließfächer bedecken die Wände, manche scheinen auch noch auf zu sein.',
+        'description': 'Schließfächer bedecken die Wände, manche scheinen auch noch auf zu sein. In einem offenen Schließfach liegt ein Pistolenmagazin – wohl vom Sicherheitsdienst.',
         'exits': {'Osten': 'krankenhaus_mitarbeiter_raum'},
-        'items': [],
+        'items': ['pistolen_munition'],
         'in_development': False
     },
     'krankenhaus_schwesterstation': {#Krankenhaus
@@ -1398,7 +1398,7 @@ rooms = {
         'name': 'Walmart',
         'description': 'Rucksäcke zerfläddert und verteilt, ein paar nützliche sachen könnten da noch liegen.',
         'exits': {'norden': 'walmart_11'},
-        'items': ['Zettel','Messer','Medikit'],
+        'items': ['Zettel','küchenmesser','Medikit'],
         'in_development': True
     },
     'walmart_13': {#Walmart
@@ -1412,7 +1412,7 @@ rooms = {
         'name': 'Walmart',
         'description': 'Alles abgeblockt, kein weiterer durchgang oder noch platz zum durch quetschen.',
         'exits': {'süden': 'walmart_13'},
-        'items': ['Baseball Schläger', 'Pistole'],
+        'items': ['Baseball Schläger', 'Pistole', 'pistolen_munition'],
         'in_development': True
     },
     'norden_straße': {#Stadt Norden
@@ -1559,7 +1559,7 @@ rooms = {
             'Nach SÜDEN führt die Bresche zurück nach draußen.'
         ),
         'exits': {'süden': 'skyscraper_1'},
-        'items': [],
+        'items': ['ak_munition'],
         'in_development': False,
         'spawn_chance': True,
         'zombie_spawn': True
@@ -1645,12 +1645,77 @@ rooms = {
     },
     'casino_sw': {#Stadt
         'name': 'Casino SW',
-        'description': 'Südwestlicher Straßenabschnitt am Casino. Im OSTEN liegt Casino SE. Nach NORDEN geht es zur Home Depot SW.',
-        'exits': {'osten': 'casino_se', 'norden': 'home_depot_sw'},
+        'description': 'Südwestlicher Straßenabschnitt am Casino. Im OSTEN liegt der Eingang des Casinos. Nach NORDEN geht es zum Home Depot Süden.',
+        'exits': {'osten': 'casino_eingang', 'norden': 'home_depot_south'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
         'zombie_spawn': False
+    },
+    'casino_eingang': {#Casino
+        'name': 'Casino – Eingang',
+        'description': (
+            'Die schweren Glastüren des Casinos stehen weit offen. Splitterndes Glas knirscht unter deinen Stiefeln. '
+            'Im Foyer hängen noch vereinzelte Lüster – einer schwingt leicht, als wäre gerade jemand vorbeigerannt. '
+            'Im WESTEN liegt die Straße. Im OSTEN geht es weiter an der Außenseite entlang. '
+            'Im NORDEN betritt man die Spielhalle.'
+        ),
+        'exits': {'westen': 'casino_sw', 'osten': 'casino_se', 'norden': 'casino_spielhalle'},
+        'items': ['schlüssel'],
+        'in_development': False,
+        'spawn_chance': True,
+        'zombie_spawn': False
+    },
+    'casino_spielhalle': {#Casino
+        'name': 'Casino – Spielhalle',
+        'description': (
+            'Der riesige Hauptsaal des Casinos. Roulette-Tische liegen umgekippt, Spielautomaten sind zerschlagen, '
+            'Münzen und Jetons bedecken den blutbefleckten Teppich. Die Bar ist im WESTEN. '
+            'Im OSTEN liegt ein bewachter Hinterbereich. Im SÜDEN kommt man wieder zum Eingang.'
+        ),
+        'exits': {'süden': 'casino_eingang', 'westen': 'casino_bar', 'osten': 'casino_hinterzimmer'},
+        'items': ['pistole', 'pistolen_munition'],
+        'in_development': False,
+        'spawn_chance': True,
+        'zombie_spawn': True
+    },
+    'casino_bar': {#Casino
+        'name': 'Casino – Bar',
+        'description': (
+            'Die Casinobar. Zerbrochene Flaschen, umgekippte Barhocker. Hinter der Theke liegen noch '
+            'ein paar ungeöffnete Konserven und eine Wasserflasche. Die Spielhalle ist im OSTEN.'
+        ),
+        'exits': {'osten': 'casino_spielhalle'},
+        'items': ['konserven', 'wasser', 'schokoriegel'],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'casino_hinterzimmer': {#Casino
+        'name': 'Casino – Hinterzimmer',
+        'description': (
+            'Ein abgesicherter Bereich hinter der Spielhalle. Stahlschränke sind aufgebrochen, '
+            'Papiergeld verstreut sich wertlos auf dem Boden. In einer Ecke liegt ein versteckter Rucksack. '
+            'Im WESTEN ist die Spielhalle. Im NORDEN geht es zum Tresorraum.'
+        ),
+        'exits': {'westen': 'casino_spielhalle', 'norden': 'casino_tresor'},
+        'items': ['rucksack', 'medkit'],
+        'in_development': False,
+        'spawn_chance': True,
+        'zombie_spawn': True
+    },
+    'casino_tresor': {#Casino
+        'name': 'Casino – Tresorraum',
+        'description': (
+            'Der Tresorraum des Casinos. Die massive Stahltür steht halb offen – jemand war vor dir hier. '
+            'Leere Kassetten, zerrissene Geldbündel. Aber an der Wand lehnt noch eine AK-47 '
+            'und auf einem Regal liegt ein Medikit. Im SÜDEN zurück ins Hinterzimmer.'
+        ),
+        'exits': {'süden': 'casino_hinterzimmer'},
+        'items': ['ak', 'medkit', 'ak_munition', 'ak_munition'],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': True
     },
     'home_depot_east': {#Stadt
         'name': 'Home Depot – Osten',
@@ -1672,8 +1737,8 @@ rooms = {
     },
     'home_depot_south': {#Stadt
         'name': 'Home Depot – Süden',
-        'description': 'Die Südseite des Parkplatzes. Im OSTEN die Südostecke. Nach WESTEN zur Südwestecke.',
-        'exits': {'osten': 'home_depot_se', 'westen': 'home_depot_sw'},
+        'description': 'Die Südseite des Parkplatzes. Im OSTEN die Südostecke. Nach WESTEN zur Südwestecke. Im SÜDEN liegt das Casino.',
+        'exits': {'osten': 'home_depot_se', 'westen': 'home_depot_sw', 'süden': 'casino_sw'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1682,7 +1747,7 @@ rooms = {
     'home_depot_sw': {#Stadt
         'name': 'Home Depot – Südwesten',
         'description': 'Südwestecke des Geländes. Im OSTEN die Südkante. Nach NORDEN die Westseite.',
-        'exits': {'osten': 'home_depot_south', 'norden': 'home_depot_west', 'süden': 'casino_sw'},
+        'exits': {'osten': 'home_depot_south', 'norden': 'home_depot_west'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1708,8 +1773,8 @@ rooms = {
     },
     'home_depot_north': {#Stadt
         'name': 'Home Depot – Norden',
-        'description': 'Die Nordseite vorm ehemaligen Home Depot. Im WESTEN die Nordwestecke. Im OSTEN die Nordostecke. Nach NORDEN die Krankenhaus Straße.',
-        'exits': {'westen': 'home_depot_nw', 'osten': 'home_depot_ne', 'norden': 'krankenhaus_straße'},
+        'description': 'Die Nordseite vorm ehemaligen Home Depot. Im WESTEN die Nordwestecke. Im OSTEN die Nordostecke.',
+        'exits': {'westen': 'home_depot_nw', 'osten': 'home_depot_ne'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1717,8 +1782,8 @@ rooms = {
     },
     'home_depot_ne': {#Stadt
         'name': 'Home Depot – Nordosten',
-        'description': 'Nordostecke am Zaun. Im WESTEN die Nordseite. Im SÜDEN der östliche Rand. Im OSTEN zur Straße vor der Pizzeria.',
-        'exits': {'westen': 'home_depot_north', 'süden': 'home_depot_east', 'osten': 'straße_pizzeria'},
+        'description': 'Nordostecke am Zaun. Im WESTEN die Nordseite. Im SÜDEN der östliche Rand. Im OSTEN zur Straße vor der Pizzeria. Nach NORDEN führt die Straße zur Krankenhaus Straße.',
+        'exits': {'westen': 'home_depot_north', 'süden': 'home_depot_east', 'osten': 'straße_pizzeria', 'norden': 'krankenhaus_straße'},
         'items': [],
         'in_development': True,
         'spawn_chance': False,
@@ -1875,6 +1940,7 @@ rooms = {
             'Du betrittst den verlassenen Coffeeshop. Der Geruch von altem Kaffee hängt noch schwach in der Luft. '
             'Umgeworfene Stühle und Tische stehen kreuz und quer. Hinter dem Tresen steht eine verrostete Espressomaschine. '
             'Die Vitrine ist aufgebrochen und leer geplündert — bis auf ein paar vergessene Schokoriegel. '
+            'In der hinteren Ecke sitzt ein großer, bärtiger Mann auf dem Boden — er starrt dich mit aufgerissenen Augen an. '
             'Die Tür im OSTEN führt zurück in die Gasse.'
         ),
         'exits': {'osten': 'gasse_ende'},
@@ -1926,7 +1992,7 @@ rooms = {
             'Nach WESTEN geht es zurück ins Hauptbüro.'
         ),
         'exits': {'westen': 'polizei_hauptbuero'},
-        'items': ['pistole'],
+        'items': ['pistole', 'pistolen_munition', 'pistolen_munition', 'ak_munition'],
         'in_development': False,
         'spawn_chance': False,
         'zombie_spawn': False
@@ -1969,7 +2035,7 @@ BUILDING_HIERARCHY = {
                        'skyscraper2_weggabelung_west',
                        'feuerwehrstraße',
                        'feuerwehr_straße_se',
-                       'casino_east', 'casino_se', 'casino_sw',
+                       
                        'home_depot_east', 'home_depot_se', 'home_depot_south',
                        'home_depot_sw', 'home_depot_west', 'home_depot_nw',
                        'home_depot_north', 'home_depot_ne',
@@ -2029,6 +2095,14 @@ BUILDING_HIERARCHY = {
                 'polizei_hauptbuero',
                 'polizei_waffenraum',
             ],
+        },
+    },
+    'casino': {
+        'name': 'Casino',
+        'floors': {
+            'straßen': ['casino_east', 'casino_se', 'casino_sw'],
+            'innen': ['casino_eingang', 'casino_spielhalle', 'casino_bar',
+                      'casino_hinterzimmer', 'casino_tresor'],
         },
     },
     'coffeeshop': {
@@ -2500,6 +2574,7 @@ def start_game():
     global current_state, game_history, current_room, player_inventory, prolog_shown, prolog_lines, prolog_line_index, menu_music_playing, visited_rooms, zombie_kill_times
     global game_score, game_moves, view_mode, visited_rooms_desc, game_start_ticks, pending_ambiguity
     global bibliothek_4_schrank_geschoben, krankenhaus_schrank_geschoben, numpad_nutzen
+    global christopher_getroffen, christopher_dialog_index
     current_state = GAME
     game_history = []
     current_room = 'start'
@@ -2523,7 +2598,6 @@ def start_game():
     player_stats['equipped_weapon'] = None
     player_stats['weapon_type'] = None
     player_stats['in_combat'] = False
-    player_stats['fist_level'] = 1
     # Container-Inhalte zurücksetzen
     for idef in ITEM_DEFS.values():
         if idef.is_container:
@@ -2543,6 +2617,8 @@ def start_game():
     coffeeshop_tür_auf = False
     gasse_ende_untersucht = False
     apply_coffeeshop_tür_state()
+    christopher_getroffen = False
+    christopher_dialog_index = 0
 
     # Menü-Musik stoppen, Ambient-Musik starten
     start_ambient_music()
@@ -2563,6 +2639,7 @@ def load_game_from_menu():
     global nachtschrank_auf, safe_auf_haus1, safe_durchsucht_haus1
     global krankenhaus_schrank_geschoben, numpad_nutzen, coffeeshop_tür_auf, gasse_ende_untersucht
     global skyscraper1_rezeption_untersucht
+    global christopher_getroffen, christopher_dialog_index
     global scored_items, scored_kills, pending_ambiguity, game_history
     
     if not os.path.exists(SAVE_FILE):
@@ -2617,6 +2694,8 @@ def load_game_from_menu():
     coffeeshop_tür_auf = data.get('coffeeshop_tür_auf', False)
     gasse_ende_untersucht = data.get('gasse_ende_untersucht', False)
     skyscraper1_rezeption_untersucht = data.get('skyscraper1_rezeption_untersucht', False)
+    christopher_getroffen = data.get('christopher_getroffen', False)
+    christopher_dialog_index = data.get('christopher_dialog_index', 0)
     # Puzzle-Übergänge anhand der geladenen Flags rekonstruieren.
     apply_bibliothek_bookshelf_state()
     apply_krankenhaus_geheimlabor_state()
@@ -2930,6 +3009,8 @@ def move_direction(direction):
     current_room = target
     visited_rooms.add(current_room)
     add_to_history(f"Du gehst nach {direction.upper()}...")
+    if player_stats.get('companion') == 'christopher':
+        add_to_history("Christopher folgt dir.")
     add_to_history("")
     describe_room()
 
@@ -2981,7 +3062,7 @@ def trigger_two_year_timeskip():
 
 def describe_room():
     """Beschreibt den aktuellen Raum"""
-    global game_score
+    global game_score, christopher_getroffen
     room = rooms[current_room]
     
     # Score für neuen Raum
@@ -3069,6 +3150,32 @@ def describe_room():
             return
         else:
             room['zombie_spawn'] = False
+    # Christopher Thomson — Erstbegegnung im Coffeeshop
+    if current_room == 'coffeeshop' and not christopher_getroffen:
+        christopher_getroffen = True
+        add_to_history("")
+        add_to_history("─" * 50)
+        add_to_history("Als du die Tür öffnest, hörst du ein scharfes Luftholen.")
+        add_to_history("")
+        add_to_history('Ein großer Mann — Mitte dreißig, zerzauster Bart, schmutzige Arbeitskleidung —')
+        add_to_history('springt hinter einem umgeworfenen Tisch hervor.')
+        add_to_history('In seiner Hand zittert eine abgebrochene Flasche.')
+        add_to_history("")
+        add_to_history('"Nicht bewegen! Ich— ich bin nicht infiziert, ich schwöre es!"')
+        add_to_history("")
+        add_to_history('Seine Augen huschen nervös zur Tür, dann zurück zu dir.')
+        add_to_history('Sekunden vergehen. Dann lässt er langsam die Flasche sinken.')
+        add_to_history("")
+        add_to_history('"Gott sei Dank... du bist echt. Du bist... nicht wie die anderen."')
+        add_to_history('Er lehnt sich gegen die Wand und schließt kurz die Augen.')
+        add_to_history('"Ich bin Christopher. Christopher Thomson. Ich bin seit zwei Jahren hier draußen."')
+        add_to_history("")
+        add_to_history('Er sieht erschöpft aus — aber lebendig.')
+        add_to_history("─" * 50)
+        add_to_history("")
+        add_to_history('[Tipp: Tippe "hallo christopher" oder "rede mit christopher" um mit ihm zu reden.]')
+        add_to_history("")
+
     # Gegner im Raum?
     if room.get('enemy'):
         enemy_key = room['enemy']
@@ -3152,6 +3259,8 @@ def save_game():
         'coffeeshop_tür_auf': coffeeshop_tür_auf,
         'gasse_ende_untersucht': gasse_ende_untersucht,
         'skyscraper1_rezeption_untersucht': skyscraper1_rezeption_untersucht,
+        'christopher_getroffen': christopher_getroffen,
+        'christopher_dialog_index': christopher_dialog_index,
         'item_charges': {ik: idef.charge for ik, idef in ITEM_DEFS.items() if idef.max_charge >= 0},
         'scored_items': list(scored_items),
         'scored_kills': list(scored_kills),
@@ -3176,6 +3285,7 @@ def restore_game():
     global nachtschrank_auf, safe_auf_haus1, safe_durchsucht_haus1
     global krankenhaus_schrank_geschoben, numpad_nutzen, coffeeshop_tür_auf, gasse_ende_untersucht
     global skyscraper1_rezeption_untersucht
+    global christopher_getroffen, christopher_dialog_index
     global scored_items, scored_kills
     try:
         with open(SAVE_FILE, 'r', encoding='utf-8') as f:
@@ -3219,6 +3329,8 @@ def restore_game():
     coffeeshop_tür_auf = data.get('coffeeshop_tür_auf', False)
     gasse_ende_untersucht = data.get('gasse_ende_untersucht', False)
     skyscraper1_rezeption_untersucht = data.get('skyscraper1_rezeption_untersucht', False)
+    christopher_getroffen = data.get('christopher_getroffen', False)
+    christopher_dialog_index = data.get('christopher_dialog_index', 0)
     # Puzzle-Übergänge anhand der geladenen Flags rekonstruieren.
     apply_bibliothek_bookshelf_state()
     apply_krankenhaus_geheimlabor_state()
@@ -3365,21 +3477,16 @@ def handle_look_in(container_key):
 
 def process_command(command):
     """Verarbeitet Spielerbefehle — dispatcht an command_handlers.py"""
-    global current_room, prolog_shown, prolog_line_index, qte_active, qte_input, command_history, history_index, current_state
+    global current_room, prolog_shown, prolog_line_index, command_history, history_index, current_state
     global pending_ambiguity, game_moves, view_mode, game_score
     
-    # Füge Command zur History hinzu (außer im QTE oder Prolog)
-    if prolog_shown and not qte_active and command.strip():
+    # Füge Command zur History hinzu (außer im Prolog)
+    if prolog_shown and command.strip():
         command_history.append(command)
         if len(command_history) > 50:
             command_history.pop(0)
     
     history_index = -1
-    
-    # QTE-Modus
-    if qte_active:
-        qte_input += command.upper()
-        return
     
     # Prolog-Modus
     if not prolog_shown:
@@ -3466,6 +3573,7 @@ def process_command(command):
     if command_handlers.handle_item_commands(cmd): return
     if command_handlers.handle_examine_command(cmd): return
     if command_handlers.handle_look_map(cmd): return
+    if command_handlers.handle_reload(cmd): return
     if command_handlers.handle_combat_commands(cmd): return
     if command_handlers.handle_container_commands(cmd): return
     if command_handlers.handle_interaction_commands(cmd): return
@@ -3575,92 +3683,58 @@ def ranged_attack(target):
         add_to_history("")
         return
 
-    # Schussberechnung
+    # Schuss trifft immer (kein Zufall, keine Trefferchance)
     add_to_history(f"Du legst die {weapon['name']} an...")
-    
-    # Trefferchance basierend auf Entfernung
-    hit_chance = weapon['accuracy']
-    if enemy.get('distance') == 'weit':
-        hit_chance *= 0.6
-    elif enemy.get('distance') == 'mittel':
-        hit_chance *= 0.8
-    
-    # Schuss
+
     weapon['ammo'] -= 1
     play_random_gun_sound()
-    
-    if random.random() < hit_chance:
-        # Berechne Schaden (Min-Max Range)
-        min_dmg, max_dmg = weapon['damage']
-        damage = random.randint(min_dmg, max_dmg)
-        
-        enemy['health'] -= damage
-        add_to_history(get_enemy_damage_reaction(damage, enemy['health'], enemy['max_health']))
-        add_to_history(f"Zustand: {get_enemy_health_description(enemy['health'], enemy['max_health'])}")
-        
-        if enemy['health'] <= 0:
-            stop_zombie_sounds()
-            play_zombie_dying_sound()
-            add_to_history(f"Der {enemy['name']} bricht zusammen!")
-            room['enemy'] = None
-            player_stats['in_combat'] = False
-            stop_combat_resume_ambient()
-            zombie_kill_times[current_room] = time.time()  # Respawn-Cooldown starten
-            add_score('zombie_kill', context=current_room)
-            grant_enemy_loot_on_death(enemy_in_room)
-        else:
-            # Gegner-Gegenangriff
-            enemy_counterattack(enemy)
-    else:
-        add_to_history("VERFEHLT! Der Schuss geht daneben.")
-        # Gegner-Gegenangriff
-        enemy_counterattack(enemy)
-    
+    add_to_history("Der Schuss kracht!")
+
+    resolve_attack(weapon, enemy, enemy_in_room)
+
     add_to_history("")
 
-def enemy_counterattack(enemy):
-    """Gegner greift zurück an"""
-    min_dmg, max_dmg = enemy['damage']
-    damage = random.randint(min_dmg, max_dmg)
-    
-    player_stats['health'] -= damage
-    # Punch-Sound nur bei Nahkampf, Zombie-Sound bei Fernkampf-Gegenangriff
+
+def resolve_attack(weapon, enemy, target):
+    """Wendet sofort deterministischen Waffenschaden an (kein Minigame, kein Wuerfel).
+
+    Schaden = oberer Wert der Waffen-Range. Bei besiegtem Gegner uebernimmt
+    _resolve_enemy_defeat, ansonsten schlaegt der Gegner direkt zurueck."""
+    room = rooms[current_room]
+    damage = weapon['damage'][1]
+
+    enemy['health'] -= damage
+    add_to_history(get_enemy_damage_reaction(damage, enemy['health'], enemy['max_health']))
+    add_to_history(f"Zustand: {get_enemy_health_description(enemy['health'], enemy['max_health'])}")
+
+    if enemy['health'] <= 0:
+        _resolve_enemy_defeat(enemy, target, room)
+    else:
+        enemy_counterattack(enemy, target)
+
+
+def enemy_counterattack(enemy, enemy_key=None):
+    """Gegner greift deterministisch zurück (kein Ausweich-Minigame).
+
+    Schaden = unterer Wert der Gegner-Range, direkt angewandt."""
+    base_damage = enemy['damage'][0]
+
+    base_damage = _companion_intercept(base_damage)
+
+    if enemy_key is None:
+        enemy_key = rooms[current_room].get('enemy', 'zombie')
+
     if player_stats.get('weapon_type') == 'ranged':
         play_random_zombie_sound()
     else:
         play_random_punch_sound()
+
     add_to_history(f"{enemy['name']} greift an!")
-    add_to_history(get_damage_reaction(damage, player_stats['health']))
-    
+    add_to_history(get_damage_reaction(base_damage, player_stats['health'] - base_damage))
+    player_stats['health'] -= base_damage
+    add_to_history("")
     if player_stats['health'] <= 0:
-        stop_zombie_sounds()
-        stop_combat_sounds()
-        add_to_history("")
-        add_to_history("=== DU BIST GESTORBEN ===")
-        # Reset Player Stats
-        player_stats['health'] = 100
-        player_stats['strength'] = 100
-        player_stats['hunger'] = 0
-        player_stats['turns_since_last_meal'] = 0
-        player_stats['last_recovery_turn'] = 0
-        player_stats['equipped_weapon'] = None
-        player_stats['weapon_type'] = None
-        player_stats['in_combat'] = False
-        player_stats['fist_level'] = 1
-        
-        # Reset Enemies
-        for enemy_key in enemies:
-            enemies[enemy_key]['health'] = enemies[enemy_key]['max_health']
-        
-        # Reset Rooms
-        rooms['start']['first_visit'] = True
-        rooms['start']['enemy'] = 'zombie'
-        rooms['start']['items'] = ['feuerlöscher', 'zeitung']
-        if 'norden' in rooms['start']['exits']:
-            del rooms['start']['exits']['norden']
-        TRANSITIONS[:] = rebuild_transitions_from_exits()
-        
-        start_game()
+        _handle_player_death()
 
 def melee_attack(target):
     """Nahkampf mit Stichwaffen"""
@@ -3687,86 +3761,16 @@ def melee_attack(target):
         return
     
     enemy = enemies.get(enemy_in_room, None)
-    if not enemy:
-        add_to_history("Fehler: Gegner nicht gefunden.")
+    if not enemy or enemy['health'] <= 0:
+        add_to_history("Der Gegner wurde bereits besiegt.")
         add_to_history("")
         return
     
     add_to_history(f"Du ziehst das {weapon['name']}...")
-    
-    # QTE für Nahkampf starten
-    start_qte_sequence('melee_strike', {'weapon': weapon, 'enemy': enemy})
-
-def start_qte_sequence(qte_type, data=None):
-    """Startet eine Quick-Time-Event Sequenz"""
-    global qte_active, qte_sequence, qte_input, qte_start_time, qte_callback
-    
-    qte_active = True
-    qte_input = ""
-    qte_start_time = time.time()
-    
-    # Generiere zufällige Tastensequenz
-    keys = ['W', 'A', 'S', 'D', 'E']
-    qte_sequence = [random.choice(keys) for _ in range(3)]
-    
-    if qte_type == 'melee_strike':
-        add_to_history(">>> QTE AKTIV <<<")
-        add_to_history(f"EINGABE: {' - '.join(qte_sequence)}")
-        add_to_history("Du hast 2 Sekunden!")
-        add_to_history("")
-        qte_callback = lambda success: handle_melee_qte(success, data)
-    
-    elif qte_type == 'combat_dodge':
-        add_to_history(">>> QTE AUSWEICHEN <<<")
-        add_to_history(f"EINGABE: {' - '.join(qte_sequence)}")
-        add_to_history("Schnell ausweichen!")
-        add_to_history("")
-        qte_callback = lambda success: handle_dodge_qte(success)
-    
-    elif qte_type == 'fishing':
-        add_to_history(">>> FISCH BEISST AN <<<")
-        add_to_history(f"EINGABE: {' - '.join(qte_sequence)}")
-        add_to_history("Schnell einholen!")
-        add_to_history("")
-        qte_callback = lambda success: handle_fishing_qte(success)
-
-def check_qte_result():
-    """Prüft QTE Ergebnis"""
-    global qte_active, qte_input, qte_callback
-    
-    if not qte_active:
-        return
-    
-    # Zeitlimit prüfen
-    elapsed = time.time() - qte_start_time
-    
-    # Prüfe ob Sequenz komplett
-    if qte_input == ''.join(qte_sequence):
-        qte_active = False
-        add_to_history(">>> PERFEKT! <<<")
-        add_to_history("")
-        if qte_callback:
-            qte_callback(True)
-        qte_callback = None
-        qte_input = ""
-    
-    elif elapsed > qte_duration:
-        qte_active = False
-        add_to_history(">>> ZU LANGSAM! <<<")
-        add_to_history("")
-        if qte_callback:
-            qte_callback(False)
-        qte_callback = None
-        qte_input = ""
-        
-    elif len(qte_input) > 0 and not ''.join(qte_sequence).startswith(qte_input):
-        qte_active = False
-        add_to_history(">>> FALSCHE TASTE! <<<")
-        add_to_history("")
-        if qte_callback:
-            qte_callback(False)
-        qte_callback = None
-        qte_input = ""
+    add_to_history("")
+    play_random_punch_sound()
+    resolve_attack(weapon, enemy, enemy_in_room)
+    add_to_history("")
 
 def read_item(item):
     """Lese ein Item (Zeitung, Notizen, etc.)"""
@@ -3849,13 +3853,12 @@ def attack_with_weapon(target, weapon_name):
     weapon = weapons[weapon_key]
     add_to_history(f"Du schwingst den {weapon['name']}!")
     add_to_history("")
-    
-    # Starte QTE für Nahkampf
-    start_qte_sequence('melee_strike', {
-        'weapon': weapon,
-        'enemy': enemy,
-        'target': enemy_in_room
-    })
+    if weapon.get('type') == 'ranged':
+        play_random_gun_sound()
+    else:
+        play_random_punch_sound()
+    resolve_attack(weapon, enemy, enemy_in_room)
+    add_to_history("")
 
 def unarmed_attack(target):
     """Unbewaffneter Angriff oder mit improvisierten Waffen"""
@@ -3880,35 +3883,21 @@ def unarmed_attack(target):
         if 'feuerlöscher' in player_inventory:
             add_to_history("Du schwingst den Feuerlöscher!")
             add_to_history("")
-            start_qte_sequence('melee_strike', {
-                'weapon': weapons['feuerlöscher'], 
-                'enemy': enemies['zombie'],
-                'target': 'zombie'
-            })
-        elif 'fäuste' in player_inventory:
-            add_to_history("Du schlägst mit bloßen Fäusten!")
-            add_to_history("")
-            start_qte_sequence('melee_strike', {
-                'weapon': weapons['fäuste'], 
-                'enemy': enemies['zombie'],
-                'target': 'zombie'
-            })
+            play_random_punch_sound()
+            resolve_attack(weapons['feuerlöscher'], enemies['zombie'], 'zombie')
         elif 'feuerlöscher' in room.get('items', []):
             # Feuerlöscher ist im Raum - nimm und benutze ihn
             room['items'].remove('feuerlöscher')
             player_inventory.append('feuerlöscher')
             add_to_history("Du reißt den Feuerlöscher von der Wand!")
             add_to_history("")
-            start_qte_sequence('melee_strike', {
-                'weapon': weapons['feuerlöscher'], 
-                'enemy': enemies['zombie'],
-                'target': 'zombie'
-            })
+            play_random_punch_sound()
+            resolve_attack(weapons['feuerlöscher'], enemies['zombie'], 'zombie')
         else:
             add_to_history("Du schlägst mit bloßen Fäusten!")
-            add_to_history("Der Zombie weicht kaum zurück.")
-            add_to_history("Du brauchst eine Waffe!")
             add_to_history("")
+            play_random_punch_sound()
+            resolve_attack(weapons['fäuste'], enemies['zombie'], 'zombie')
     else:
         # Generischer Nahkampf in allen anderen Räumen
         enemy = enemies.get(enemy_in_room)
@@ -3919,30 +3908,8 @@ def unarmed_attack(target):
         
         add_to_history("Du schlägst mit bloßen Fäusten!")
         add_to_history("")
-        start_qte_sequence('melee_strike', {
-            'weapon': weapons['fäuste'],
-            'enemy': enemy,
-            'target': enemy_in_room
-        })
-
-def level_up_fists():
-    """Level-Up der Fäuste bei Black Flash"""
-    if player_stats['fist_level'] >= 5:
-        add_to_history("Fäuste bereits auf MAX LEVEL!")
-        return
-    
-    player_stats['fist_level'] += 1
-    new_level = player_stats['fist_level']
-    
-    level_names = {2: 'Straßenkämpfer', 3: 'Erfahren', 4: 'Fortgeschritten', 5: 'Meisterhaft'}
-    level_name = level_names.get(new_level, f'Level {new_level}')
-    
-    add_to_history("")
-    add_to_history("=================================")
-    add_to_history(f">>> FÄUSTE LEVEL UP! <<<")
-    add_to_history(f"Kampfstil: {level_name}")
-    add_to_history("Du spürst wie deine Schläge mächtiger werden.")
-    add_to_history("=================================")
+        play_random_punch_sound()
+        resolve_attack(weapons['fäuste'], enemy, enemy_in_room)
 
 
 def grant_enemy_loot_on_death(enemy_key):
@@ -3957,214 +3924,116 @@ def grant_enemy_loot_on_death(enemy_key):
             add_to_history(f"Am Boden liegt nun ein {get_item_name(loot)}.")
 
 
-def handle_melee_qte(success, data):
-    """Verarbeitet Nahkampf QTE Ergebnis"""
-    weapon = data['weapon']
-    enemy = data['enemy']
-    target = data.get('target', 'enemy')
-    is_fists = (weapon.get('name') == 'Fäuste')
-    
-    room = rooms[current_room]
-    got_black_flash = False  # Tracker für Level-Up
-    
-    if success:
-        play_random_punch_sound()
-        # Für Fäuste: Nutze Level-basierte Stats (KEINE Crit-Chance!)
-        if is_fists:
-            fist_level = player_stats['fist_level']
-            fist_bonus = FIST_LEVEL_BONUSES[fist_level]
-            min_dmg, max_dmg = fist_bonus['damage']
-            black_flash = weapon.get('black_flash', 0.01)
-        else:
-            min_dmg, max_dmg = weapon['damage']
-            black_flash = weapon.get('black_flash', 0.01)
-        
-        damage = random.randint(min_dmg, max_dmg)
-        
-        # Kritischer Treffer (nicht für Fäuste)
-        crit = weapon.get('crit_chance', 0)
-        if crit > 0 and random.random() < crit:
-            damage = int(damage * 1.5)
-            add_to_history(">>> KRITISCHER TREFFER! <<<")
-        
-        # Black Flash
-        if random.random() < black_flash:
-            damage = int(damage * 2.5)
-            add_to_history(">>> BLACK FLASH! <<<")
-            got_black_flash = True
-            
-        enemy['health'] -= damage
-        add_to_history(get_enemy_damage_reaction(damage, enemy['health'], enemy['max_health']))
-        add_to_history(f"Zustand: {get_enemy_health_description(enemy['health'], enemy['max_health'])}")
-        
-        # Level-Up bei Black Flash (statt XP-System)
-        if is_fists and got_black_flash:
-            level_up_fists()
-        
-        if enemy['health'] <= 0:
-            stop_zombie_sounds()
-            play_zombie_dying_sound()
+# ============================================================
+# BEGLEITER-SYSTEM
+# ============================================================
+
+def _companion_post_combat_heal():
+    """Passiver HP-Regen nach einem erfolgreichen Kampf wenn Begleiter aktiv."""
+    comp = player_stats.get('companion')
+    if comp and comp != 'christopher_waiting' and player_stats['health'] < 100:
+        heal = 5
+        player_stats['health'] = min(100, player_stats['health'] + heal)
+        add_to_history(f"Christopher versorgt deine Wunden. +{heal} HP")
+        add_to_history("")
+
+
+def _companion_intercept(base_damage):
+    """Prüft ob der Begleiter den Angriff abfängt. Gibt modifizierten Schaden zurück."""
+    comp = player_stats.get('companion')
+    if not comp or comp == 'christopher_waiting':
+        return base_damage
+
+    stunned = player_stats.get('companion_stunned_turns', 0)
+    if stunned > 0:
+        player_stats['companion_stunned_turns'] = stunned - 1
+        if player_stats['companion_stunned_turns'] == 0:
+            add_to_history("Christopher erholt sich langsam und ist wieder einsatzbereit.")
             add_to_history("")
-            if target == 'zombie':
-                add_to_history("Der Zombie zuckt ein letztes Mal.")
-                add_to_history("Schwarze Flüssigkeit sickert aus dem zerschmetterten Schädel.")
-            else:
-                add_to_history(f"{enemy['name']} sackt schwer zusammen.")
-            add_to_history("")
-            add_to_history("=== SIEG ===")
-            add_to_history("")
-            
-            # Gegner besiegt - entferne aus Raum
-            room['enemy'] = None
-            player_stats['in_combat'] = False
-            stop_combat_resume_ambient()
-            zombie_kill_times[current_room] = time.time()  # Respawn-Cooldown starten
-            add_score('zombie_kill', context=current_room)
-            grant_enemy_loot_on_death(target)
-            
-            # Raumspezifische Belohnungen
-            if current_room == 'start':
-                rooms['start'].setdefault('exits', {})['norden'] = 'corridor'
-                TRANSITIONS[:] = rebuild_transitions_from_exits()
-                room['items'].append('taschenlampe')
-                add_to_history("Der Bunker ist still. Du bist vorerst sicher.")
-                add_to_history("Im NORDEN siehst du nun einen Korridor.")
-            else:
-                add_to_history("Der Raum ist jetzt sicher.")
-        else:
-            # Gegner schlägt zurück
-            min_dmg, max_dmg = enemy['damage']
-            damage = random.randint(min_dmg, max_dmg)
-            player_stats['health'] -= damage
-            add_to_history(f"{enemy['name']} krallt sich in deine Schulter!")
-            add_to_history(get_damage_reaction(damage, player_stats['health']))
-            
-            if player_stats['health'] <= 0:
-                stop_zombie_sounds()
-                stop_combat_sounds()
-                add_to_history("")
-                add_to_history("=== DU BIST GESTORBEN ===")
-                # Reset Player Stats
-                player_stats['health'] = 100
-                player_stats['strength'] = 100
-                player_stats['hunger'] = 0
-                player_stats['turns_since_last_meal'] = 0
-                player_stats['last_recovery_turn'] = 0
-                player_stats['equipped_weapon'] = None
-                player_stats['weapon_type'] = None
-                player_stats['in_combat'] = False
-                player_stats['fist_level'] = 1
-                
-                # Reset Enemies
-                for enemy_key in enemies:
-                    enemies[enemy_key]['health'] = enemies[enemy_key]['max_health']
-                
-                # Reset Rooms
-                rooms['start']['first_visit'] = True
-                rooms['start']['enemy'] = 'zombie'
-                rooms['start']['items'] = ['feuerlöscher', 'zeitung']
-                reset_transitions()
-                
-                start_game()
-    else:
-        add_to_history("Du verfehlst!")
-        min_dmg, max_dmg = enemy['damage']
-        damage = random.randint(min_dmg, max_dmg)
-        player_stats['health'] -= damage
-        play_random_punch_sound()
-        add_to_history(f"Der Zombie beißt zu!")
-        add_to_history(get_damage_reaction(damage, player_stats['health']))
-        
-        if player_stats['health'] <= 0:
-            stop_zombie_sounds()
-            stop_combat_sounds()
-            add_to_history("")
-            add_to_history("=== DU BIST GESTORBEN ===")
-            # Reset Player Stats
-            player_stats['health'] = 100
-            player_stats['strength'] = 100
-            player_stats['hunger'] = 0
-            player_stats['turns_since_last_meal'] = 0
-            player_stats['last_recovery_turn'] = 0
-            player_stats['equipped_weapon'] = None
-            player_stats['weapon_type'] = None
-            player_stats['in_combat'] = False
-            player_stats['fist_level'] = 1
-            
-            # Reset Enemies
-            for enemy_key in enemies:
-                enemies[enemy_key]['health'] = enemies[enemy_key]['max_health']
-            
-            # Reset Rooms
-            rooms['start']['first_visit'] = True
-            rooms['start']['enemy'] = 'zombie'
-            rooms['start']['items'] = ['feuerlöscher', 'zeitung']
-            reset_transitions()
-            
-            start_game()
-    
+        return base_damage
+
+    # Begleiter fängt jeden Angriff ab und halbiert den Schaden (deterministisch)
+    reduced = max(1, int(base_damage * 0.5))
+    add_to_history("Christopher reißt den Feind zur Seite!")
+    add_to_history(f"[Begleiter-Schutz: Schaden {base_damage} → {reduced}]")
     add_to_history("")
 
-def handle_dodge_qte(success):
-    """Verarbeitet Ausweich QTE Ergebnis"""
-    room = rooms[current_room]
-    enemy_key = room.get('enemy', None)
-    
-    if not enemy_key:
-        return
-    
-    enemy = enemies.get(enemy_key)
-    
-    if success:
-        add_to_history("Du weichst dem Angriff aus!")
+    comp_dmg = 15
+    player_stats['companion_hp'] = max(0, player_stats['companion_hp'] - comp_dmg)
+
+    if player_stats['companion_hp'] <= 0:
+        player_stats['companion_stunned_turns'] = 3
+        add_to_history("Christopher ist verletzt und für kurze Zeit außer Gefecht!")
+        add_to_history("")
+
+    return reduced
+
+
+def _handle_player_death():
+    """Zentralisierte Todes-Behandlung: Reset und Neustart."""
+    global current_state
+    stop_zombie_sounds()
+    stop_combat_sounds()
+    add_to_history("")
+    add_to_history("=== DU BIST GESTORBEN ===")
+
+    player_stats['health'] = 100
+    player_stats['strength'] = 100
+    player_stats['hunger'] = 0
+    player_stats['turns_since_last_meal'] = 0
+    player_stats['last_recovery_turn'] = 0
+    player_stats['equipped_weapon'] = None
+    player_stats['weapon_type'] = None
+    player_stats['in_combat'] = False
+    player_stats['companion'] = None
+    player_stats['companion_hp'] = 100
+    player_stats['companion_stunned_turns'] = 0
+
+    for ek in enemies:
+        enemies[ek]['health'] = enemies[ek]['max_health']
+
+    rooms['start']['first_visit'] = True
+    rooms['start']['enemy'] = 'zombie'
+    rooms['start']['items'] = ['feuerlöscher', 'zeitung']
+    reset_transitions()
+    start_game()
+
+
+# ============================================================
+# KAMPF-AUFLÖSUNG (Sieg-Logik)
+# ============================================================
+
+def _resolve_enemy_defeat(enemy, target, room):
+    """Gemeinsame Sieg-Logik wenn ein Gegner im Nahkampf besiegt wird."""
+    stop_zombie_sounds()
+    play_zombie_dying_sound()
+    add_to_history("")
+    if target == 'zombie':
+        add_to_history("Der Zombie zuckt ein letztes Mal.")
+        add_to_history("Schwarze Flüssigkeit sickert aus dem zerschmetterten Schädel.")
     else:
-        min_dmg, max_dmg = enemy['damage']
-        damage = random.randint(min_dmg, max_dmg)
-        player_stats['health'] -= damage
-        add_to_history(f"Getroffen!")
-        add_to_history(get_damage_reaction(damage, player_stats['health']))
-        
-        if player_stats['health'] <= 0:
-            stop_zombie_sounds()
-            stop_combat_sounds()
-            add_to_history("")
-            add_to_history("=== DU BIST GESTORBEN ===")
-            # Reset Player Stats
-            player_stats['health'] = 100
-            player_stats['strength'] = 100
-            player_stats['hunger'] = 0
-            player_stats['turns_since_last_meal'] = 0
-            player_stats['last_recovery_turn'] = 0
-            player_stats['equipped_weapon'] = None
-            player_stats['weapon_type'] = None
-            player_stats['in_combat'] = False
-            player_stats['fist_level'] = 1
-            
-            # Reset Enemies
-            for enemy_key in enemies:
-                enemies[enemy_key]['health'] = enemies[enemy_key]['max_health']
-            
-            # Reset Rooms
-            rooms['start']['first_visit'] = True
-            rooms['start']['enemy'] = 'zombie'
-            rooms['start']['items'] = ['feuerlöscher', 'zeitung']
-            if 'norden' in rooms['start']['exits']:
-                del rooms['start']['exits']['norden']
-            TRANSITIONS[:] = rebuild_transitions_from_exits()
-            
-            start_game()
-    
+        add_to_history(f"{enemy['name']} sackt schwer zusammen.")
+    add_to_history("")
+    add_to_history("=== SIEG ===")
     add_to_history("")
 
-def handle_fishing_qte(success):
-    """Verarbeitet Angel QTE Ergebnis"""
-    if success:
-        add_to_history("Du ziehst einen Fisch an Land!")
-        player_inventory.append('fisch')
+    room['enemy'] = None
+    player_stats['in_combat'] = False
+    stop_combat_resume_ambient()
+    zombie_kill_times[current_room] = time.time()
+    add_score('zombie_kill', context=current_room)
+    grant_enemy_loot_on_death(target)
+    _companion_post_combat_heal()
+
+    if current_room == 'start':
+        rooms['start'].setdefault('exits', {})['norden'] = 'corridor'
+        TRANSITIONS[:] = rebuild_transitions_from_exits()
+        room['items'].append('taschenlampe')
+        add_to_history("Der Bunker ist still. Du bist vorerst sicher.")
+        add_to_history("Im NORDEN siehst du nun einen Korridor.")
     else:
-        add_to_history("Der Fisch ist entkommen...")
-    
-    add_to_history("")
+        add_to_history("Der Raum ist jetzt sicher.")
+
 
 def draw_game(current_time):
     """Amber-Phosphor Terminal — sauber, lesbar, kein Artifact-Rechteck."""
@@ -4196,24 +4065,14 @@ def draw_game(current_time):
     screen.blit(stat_surf, (w - stat_surf.get_width() - text_padding,
                              (BAR_H - stat_surf.get_height()) // 2))
 
-    # ── QTE Timer ─────────────────────────────────────────────────────────
-    qte_offset = 0
-    if qte_active:
-        elapsed   = time.time() - qte_start_time
-        remaining = max(0, qte_duration - elapsed)
-        timer_text = f"! ZEIT: {remaining:.1f}s   EINGABE: {qte_input} !"
-        timer_surf = font_text.render(timer_text, True, COLOR_DANGER)
-        screen.blit(timer_surf, (text_padding, BAR_H + scale(6)))
-        qte_offset = scale(32)
-
     # ── Text-Bereich ───────────────────────────────────────────────────────
-    y_start        = BAR_H + scale(8) + qte_offset
+    y_start        = BAR_H + scale(8)
     available_h    = h - y_start - input_area_h
     visible_lines  = max(1, available_h // line_height)
     total_lines    = len(game_history)
     max_scroll     = max(0, total_lines - visible_lines)
 
-    if prolog_shown and not qte_active:
+    if prolog_shown:
         end_idx   = total_lines - scroll_offset
         start_idx = max(0, end_idx - visible_lines)
     else:
@@ -4240,7 +4099,7 @@ def draw_game(current_time):
         y_offset += line_height
 
     # ── Scroll-Indikator ───────────────────────────────────────────────────
-    if prolog_shown and not qte_active and scroll_offset > 0:
+    if prolog_shown and scroll_offset > 0:
         sb_x      = w - scale(6)
         sb_h      = available_h - scale(20)
         sb_y      = y_start + scale(10)
@@ -4252,7 +4111,7 @@ def draw_game(current_time):
                              (sb_x, int(thumb_y), scale(4), int(thumb_h)))
 
     # ── Input-Bereich ──────────────────────────────────────────────────────
-    if prolog_shown and not qte_active:
+    if prolog_shown:
         input_y = h - input_area_h
         pygame.draw.line(screen, TERMINAL_AMBER_DIM,
                          (text_padding, input_y - scale(6)),
@@ -4269,7 +4128,7 @@ def draw_game(current_time):
             screen.blit(hint_surf, (w - hint_surf.get_width() - text_padding,
                                     input_y + scale(10)))
 
-    elif not prolog_shown and not qte_active:
+    elif not prolog_shown:
         pulse     = int(160 + 60 * math.sin(current_time * 0.003))
         hint_col  = (pulse, pulse, pulse)
         hint_surf = font_text.render("[Drücke ENTER um fortzufahren]", True, hint_col)
@@ -4569,7 +4428,7 @@ def main():
                     else:
                         current_state = MENU
                         _start_menu_music()
-                
+
                 # State-spezifische Keydown-Handler
                 elif event.key == pygame.K_SPACE and current_state == INTRO:
                     current_state = MENU
@@ -4585,7 +4444,7 @@ def main():
             
             elif event.type == pygame.KEYUP:
                 event_handlers.handle_keyup(event)
-            
+
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     if current_state == MENU:

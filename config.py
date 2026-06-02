@@ -128,29 +128,19 @@ TYPEWRITER_SPEED = 1  # Millisekunden pro Zeichen (1 = extrem schnell)
 # ========================
 ZOMBIE_RESPAWN_COOLDOWN = 300  # 5 Minuten in Sekunden
 
-# Bonus-Stats pro Fäuste-Level
-FIST_LEVEL_BONUSES = {
-    1: {'damage': [99, 100]},
-    2: {'damage': [99, 100]},
-    3: {'damage': [12, 22]},
-    4: {'damage': [18, 30]},
-    5: {'damage': [25, 40]}   # Max Level
-}
-
-# QTE defaults
-qte_duration = 2.0  # Sekunden
-
-# Waffen, dmg, crit_chance
+# Vereinfachter Kampf: kein Minigame, keine Wuerfel. Der Schaden je Waffe
+# ist deterministisch (oberer Wert der 'damage'-Range). Fäuste sind bewusst
+# schwach. Alle vorhandenen Waffen funktionieren.
 weapons = {
-    'ak': {'name': 'AK-47', 'type': 'ranged', 'damage': [50, 75], 'accuracy': 0.7, 'ammo': 30},
-    'pistole': {'name': 'Pistole', 'type': 'ranged', 'damage': [40, 60], 'accuracy': 0.8, 'ammo': 12},
-    'küchenmesser': {'name': 'Küchenmesser', 'type': 'melee', 'damage': [20, 35], 'crit_chance': 0.3},
-    'kampfmesser': {'name': 'Kampfmesser', 'type': 'melee', 'damage': [25, 40], 'crit_chance': 0.35},
-    'feuerlöscher': {'name': 'Feuerlöscher', 'type': 'melee', 'damage': [50, 80], 'crit_chance': 0.25},
-    'fäuste': {'name': 'Fäuste', 'type': 'melee', 'damage': [99, 100], 'black_flash': 1.00},
-    'baseball_schläger': {'name': 'Baseball Schläger', 'type': 'melee', 'damage': [25, 35], 'crit_chance': 0.25},
-    'axt': {'name': 'Axt', 'type': 'melee', 'damage': [35, 50], 'crit_chance': 0.3},
-    'machete': {'name': 'Machete', 'type': 'melee', 'damage': [30, 45], 'crit_chance': 0.35},
+    'ak': {'name': 'AK-47', 'type': 'ranged', 'damage': [50, 75], 'ammo': 30},
+    'pistole': {'name': 'Pistole', 'type': 'ranged', 'damage': [40, 60], 'ammo': 12},
+    'küchenmesser': {'name': 'Küchenmesser', 'type': 'melee', 'damage': [20, 35]},
+    'kampfmesser': {'name': 'Kampfmesser', 'type': 'melee', 'damage': [25, 40]},
+    'feuerlöscher': {'name': 'Feuerlöscher', 'type': 'melee', 'damage': [50, 80]},
+    'fäuste': {'name': 'Fäuste', 'type': 'melee', 'damage': [6, 6]},
+    'baseball_schläger': {'name': 'Baseball Schläger', 'type': 'melee', 'damage': [25, 35]},
+    'axt': {'name': 'Axt', 'type': 'melee', 'damage': [35, 50]},
+    'machete': {'name': 'Machete', 'type': 'melee', 'damage': [30, 45]},
 }
 
 # Essbare Items (Zork-inspiriert)
@@ -192,6 +182,8 @@ KNOWN_VERBS = {
     'r', 'runter', 'gehe', 'nimm', 'lese', 'lies', 'lesen', 'esse', 'iss',
     'inventar', 'inv', 'i', 'schaue', 'schau', 'look', 'l', 'karte', 'map',
     'ausrüsten', 'schieße', 'schiesse', 'schlag', 'schlage', 'stich',
+    'töte', 'töten', 'tote',
+    'nachladen', 'reload', 'laden',
     'clear', 'cls', 'echo', 'time', 'whoami', 'neu',
     'hilfe', 'help', 'öffne', 'oeffne', 'schließ', 'schliess', 'lege',
     'verbose', 'ausführl', 'ausführli', 'ausführlich', 'brief', 'kurz',
@@ -201,6 +193,8 @@ KNOWN_VERBS = {
     'schieben', 'schieb', 'brech', 'zerhacke', '?', 'mapedit',
     'nutze', 'benutze',
     'untersuche', 'untersuchen', 'u',
+    'spreche', 'sprich', 'rede', 'red', 'grüße', 'grüß', 'hallo', 'hi',
+    'folge', 'bleib', 'begleiter', 'companion',
 }
 
 VERBS_NEED_OBJECT = {
@@ -210,6 +204,7 @@ VERBS_NEED_OBJECT = {
     'schlag': 'schlagen', 'schlage': 'schlagen',
     'schieße': 'schießen', 'schiesse': 'schießen',
     'stich': 'stechen',
+    'töte': 'töten', 'töten': 'töten', 'tote': 'töten',
     'nutze': 'benutzen', 'benutze': 'benutzen',
 }
 
@@ -247,6 +242,30 @@ ILLOGICAL_RESPONSES = {
         "Du versuchst es drohend zu schwingen. Es sieht lächerlich aus.",
         "Das ist keine Waffe.",
     ],
+}
+
+# ========================
+# OUTDOOR ROOMS
+# ========================
+# Räume unter freiem Himmel (Straßen, Park, Gassen, Parkplätze).
+# Christopher weigert sich, in diesen Räumen zu warten — zu gefährlich.
+OUTDOOR_ROOMS = {
+    # Straßen & Weggabelungen
+    'suedlich_haus', 'westliche_haus_gabelung', 'krankenhaus_straße',
+    'nord_westliche_weggabelung', 'bibliothek_straße', 'nord_östliche_weggabelung',
+    'östliche_straße', 'norden_straße', 'oestlich_weggabelung',
+    'park_straße', 'skyscraper_weggabelung', 'skyscraper_straße',
+    'tower_straße_west', 'tower_straße_sw', 'skyscraper2_weggabelung_west',
+    'feuerwehrstraße', 'feuerwehr_straße_se', 'straße_pizzeria',
+    # Park, Gasse, Parkplatz
+    'park', 'gasse', 'gasse_ende', 'parkplatz',
+    # Home-Depot-Umring (Außengelände)
+    'home_depot_east', 'home_depot_se', 'home_depot_south', 'home_depot_sw',
+    'home_depot_west', 'home_depot_nw', 'home_depot_north', 'home_depot_ne',
+    # Casino-Straßen (Außenbereich)
+    'casino_east', 'casino_se', 'casino_sw',
+    # Außenbereich vor Haus 1 (vor der Haustür)
+    'haus1',
 }
 
 # ========================

@@ -61,9 +61,17 @@ def handle_help(cmd):
     _h("")
     _h("Kampf:")
     _h("  ausrüsten [waffe] - Waffe ausrüsten")
-    _h("  schlag [ziel] - Nahkampf")
-    _h("  stich auf [ziel] - Mit Messer angreifen")
+    _h("  schlag [ziel] - Nahkampf (Timing-Leiste: LEERTASTE)")
+    _h("  stich auf [ziel] - Mit Messer angreifen (Timing-Leiste)")
     _h("  schieße auf [ziel] - Schusswaffe nutzen")
+    _h("  nachladen - Ausgerüstete Schusswaffe nachladen (braucht Magazin im Inventar)")
+    _h("  [Angriff] - LEERTASTE wenn der Marker die Mitte trifft!")
+    _h("  [Gegenangriff] - Pfeiltasten: Herz ausweichen!")
+    _h("")
+    _h("Begleiter:")
+    _h("  folge mir - Begleiter-Status / reaktivieren")
+    _h("  bleib hier - Begleiter wartet (Boni aus)")
+    _h("  begleiter status - Begleiter-Info anzeigen")
     _h("")
     _h("Terminal:")
     _h("  clear, cls - Terminal leeren")
@@ -221,13 +229,6 @@ def handle_item_commands(cmd):
             _h(f"Waffe: {weapon['name']}")
         else:
             _h("Waffe: Keine")
-        fist_level = _game.player_stats['fist_level']
-        if fist_level >= 5:
-            _h("Fäuste: Meisterhaft")
-        elif fist_level >= 3:
-            _h("Fäuste: Erfahren")
-        else:
-            _h("Fäuste: Untrainiert")
         _h("")
         _h(_game.get_health_description())
         enc = _game.get_encumbrance_description()
@@ -329,6 +330,69 @@ def handle_item_commands(cmd):
 
 
 # ========================
+# RELOAD COMMAND
+# ========================
+_AMMO_MAP = {
+    'ak':      ('ak_munition',       30),
+    'pistole': ('pistolen_munition', 12),
+}
+
+def handle_reload(cmd):
+    """Handles: nachladen, reload, laden – lädt die ausgerüstete Schusswaffe nach."""
+    if cmd not in ('nachladen', 'reload', 'laden') and \
+       not cmd.startswith('nachladen ') and not cmd.startswith('reload '):
+        return False
+
+    ps = _game.player_stats
+    inv = _game.player_inventory
+    ws = _game.weapons
+
+    weapon_key = ps.get('equipped_weapon')
+
+    # Optionales Argument: nachladen ak / nachladen pistole
+    parts = cmd.split(None, 1)
+    if len(parts) == 2:
+        arg = parts[1].strip()
+        if arg in _AMMO_MAP:
+            weapon_key = arg
+
+    if not weapon_key or weapon_key not in ws:
+        _h("Du hast keine Schusswaffe ausgerüstet. Rüste zuerst eine aus.")
+        _h("")
+        return True
+
+    weapon = ws[weapon_key]
+    if weapon.get('type') != 'ranged':
+        _h(f"{weapon['name']} braucht keine Munition.")
+        _h("")
+        return True
+
+    ammo_key, max_ammo = _AMMO_MAP.get(weapon_key, (None, 0))
+    if not ammo_key:
+        _h("Für diese Waffe gibt es keine passende Munition.")
+        _h("")
+        return True
+
+    current_ammo = weapon.get('ammo', 0)
+    if current_ammo >= max_ammo:
+        _h(f"Das Magazin ist bereits voll ({current_ammo}/{max_ammo}).")
+        _h("")
+        return True
+
+    if ammo_key not in inv:
+        _h(f"Du hast kein {_game.ITEM_DEFS[ammo_key].name} im Inventar.")
+        _h("Suche Munition in der Welt – z.B. in der Polizeistation oder im Casino.")
+        _h("")
+        return True
+
+    inv.remove(ammo_key)
+    weapon['ammo'] = max_ammo
+    _h(f"Du lädst die {weapon['name']} nach. Munition: {max_ammo}/{max_ammo}.")
+    _h("")
+    return True
+
+
+# ========================
 # COMBAT COMMANDS
 # ========================
 def handle_combat_commands(cmd):
@@ -349,24 +413,8 @@ def handle_combat_commands(cmd):
         room = _game.rooms[_game.current_room]
         if _game.current_room == 'start' and room.get('enemy') == 'zombie' and not _game.player_stats['equipped_weapon']:
             _h("Du hast keine Waffe!")
-            _h("Du versuchst wild um dich zu schlagen...")
-            _h("")
-            if random.random() < 0.3:
-                _h("Der Zombie ist schneller!")
-                _h("Tentakel durchbohren deine Brust.")
-                _h("Schwärze übernimmt deine Vision...")
-                _h("")
-                _h("=== DU BIST GESTORBEN ===")
-                _h("")
-                _reset_player()
-                _game.rooms['start']['first_visit'] = True
-                _game.rooms['start']['enemy'] = 'zombie'
-                _game.rooms['start']['items'] = ['feuerlöscher', 'zeitung']
-                _game.reset_transitions()
-                _game.start_game()
-            else:
-                _h("Du stolperst zurück und weichst aus!")
-                _h("Schnell, nimm eine Waffe!")
+            _h("Du stolperst zurück und weichst aus!")
+            _h("Schnell, nimm eine Waffe!")
             _h("")
         else:
             _game.ranged_attack(target)
@@ -425,6 +473,34 @@ def handle_combat_commands(cmd):
         _game.melee_attack(target)
         return True
 
+    if cmd.startswith('töte ') or cmd.startswith('töten ') or cmd.startswith('tote '):
+        target = cmd.split(' ', 1)[1].strip()
+        room = _game.rooms[_game.current_room]
+        enemy_in_room = room.get('enemy', None)
+        if not enemy_in_room:
+            _h("Es gibt hier nichts zum Angreifen!")
+            _h("")
+            return True
+        enemy = enemies.get(enemy_in_room)
+        if not enemy:
+            _h("Es gibt hier nichts zum Angreifen!")
+            _h("")
+            return True
+        if not _game.enemy_target_matches(target, enemy_in_room, enemy):
+            _h(f"Hier ist kein '{target}'.")
+            _h(f"Hier ist: {enemy['name']}")
+            _h("")
+            return True
+        # Greife mit der ausgerüsteten Waffe an (Fernkampf/Nahkampf), sonst Fäuste
+        weapon_key = _game.player_stats['equipped_weapon']
+        if weapon_key and weapons[weapon_key]['type'] == 'ranged':
+            _game.ranged_attack(target)
+        elif weapon_key:
+            _game.melee_attack(target)
+        else:
+            _game.unarmed_attack(target)
+        return True
+
     return False
 
 
@@ -438,7 +514,9 @@ def _reset_player():
     _game.player_stats['equipped_weapon'] = None
     _game.player_stats['weapon_type'] = None
     _game.player_stats['in_combat'] = False
-    _game.player_stats['fist_level'] = 1
+    _game.player_stats['companion'] = None
+    _game.player_stats['companion_hp'] = 100
+    _game.player_stats['companion_stunned_turns'] = 0
     for enemy_key in enemies:
         enemies[enemy_key]['health'] = enemies[enemy_key]['max_health']
 
@@ -854,6 +932,194 @@ def handle_interaction_commands(cmd):
             _h("Dahinter liegt ein verlassener Coffeeshop.")
             _h("")
             return True
+
+    # ------------------------------------------------------------
+    # CHRISTOPHER THOMSON — Dialog & Untersuchung
+    # Raum: coffeeshop
+    # Befehle: spreche/rede/grüß mit christopher, untersuche christopher/mann
+    # ------------------------------------------------------------
+    # Hinweis: process_command kürzt Wörter auf 9 Zeichen (außer KNOWN_VERBS)
+    # "christopher" (11) → "christoph", "überlebend" (10) → "überleben"
+    _CHRISTOPHER_CMDS = (
+        _has_any(cmd, 'spreche', 'sprich', 'rede', 'grüße', 'grüß', 'hallo', 'hi') and
+        _has_any(cmd, 'christoph', 'thomson', 'mann', 'typ', 'kerl', 'überleben')
+    )
+    _CHRISTOPHER_EXAMINE = (
+        _has_any(cmd, 'untersuche', 'untersuchen', 'schau') and
+        _has_any(cmd, 'christoph', 'thomson', 'mann', 'typ', 'kerl')
+    )
+
+    if (_CHRISTOPHER_CMDS or _CHRISTOPHER_EXAMINE) and _game.current_room == 'coffeeshop':
+
+        idx = getattr(_game, 'christopher_dialog_index', 0)
+
+        # Untersuchungs-Beschreibung (immer verfügbar)
+        if _CHRISTOPHER_EXAMINE and not _CHRISTOPHER_CMDS:
+            _h("Christopher Thomson, 32 Jahre alt, etwa 190 cm groß.")
+            _h("Ein großer, kräftiger Mann mit vollem Bart und rissigen Händen —")
+            _h("die Hände eines Farmers. Seine Kleider sind zerschlissen aber sauber.")
+            _h("In seinen Augen liegt eine Mischung aus Erleichterung und tiefer Erschöpfung.")
+            _h("")
+            return True
+
+        # Dialog-Sequenz
+        if idx == 0:
+            _h('Christopher nickt dir zögernd zu.')
+            _h('"Ich heiße Christopher. Christopher Thomson. Freut mich, dich zu treffen —"')
+            _h('Er lacht kurz auf, fast ungläubig.')
+            _h('"Weißt du, wie lange ich das nicht mehr sagen konnte?"')
+            _h("")
+            _h('"Zwei Jahre. Zwei Jahre lebe ich jetzt in einem Bunker meiner Großeltern.')
+            _h('Den haben sie damals im Zweiten Weltkrieg gebaut. Massiv. Sicher."')
+            _h("")
+            _h('"Aber irgendwann braucht man Vorräte. Und so lande ich hier."')
+            _h('Er deutet auf die geplünderte Vitrine.')
+            _h('"Nicht viel geblieben."')
+            _h("")
+            _game.christopher_dialog_index = 1
+
+        elif idx == 1:
+            _h('Du fragst Christopher nach dem Anfang.')
+            _h("")
+            _h('Sein Blick wird schwerer.')
+            _h('"Der erste Tag... meinen Opa habe ich sterben sehen."')
+            _h('Er schluckt. Pause.')
+            _h('"Er wollte den Nachbarn helfen. Der schien verletzt. Aber er war es schon —"')
+            _h('Christopher schüttelt den Kopf.')
+            _h('"Ich konnte nichts tun. Ich hab einfach... weggerannt."')
+            _h("")
+            _h('Er reibt sich die Augen.')
+            _h('"Seitdem lebe ich damit. Aber ich lebe. Das muss reichen."')
+            _h("")
+            _game.christopher_dialog_index = 2
+
+        elif idx == 2:
+            _h('Du fragst ihn nach dem Bunker.')
+            _h("")
+            _h('"Meine Großeltern haben ihn 1943 gebaut. Unter dem Bauernhof."')
+            _h('"Strom über einen Generator, Wasservorrat — genug für Monate."')
+            _h('"Mein Vater hat mir als Kind alles gezeigt. Zum Glück."')
+            _h("")
+            _h('"Ich kenne mich mit Landwirtschaft aus. Ich weiß, was man essen kann,')
+            _h('wie man Wasser filtert, wie man Fallen stellt."')
+            _h('Er klopft auf einen kleinen Rucksack neben ihm.')
+            _h('"Das Wissen meiner Familie hat mich am Leben gehalten."')
+            _h("")
+            _game.christopher_dialog_index = 3
+
+        elif idx == 3:
+            _h('Du fragst, ob er sich dir anschließen möchte.')
+            _h("")
+            _h('Christopher sieht dich lange an.')
+            _h('"Alleine ist man draußen so gut wie tot. Das weiß ich."')
+            _h('"Und du... du scheinst zu wissen, was du tust."')
+            _h("")
+            _h('Er streckt dir die Hand entgegen.')
+            _h('"Abgemacht. Wohin auch immer du gehst — ich bin dabei."')
+            _h("")
+            _h('[Christopher Thomson ist jetzt dein Begleiter.]')
+            _h('[Im Kampf: 25% Chance Angriffe abzufangen, +10% Fernkampf-Genauigkeit]')
+            _h("")
+            _game.christopher_dialog_index = 4
+            _game.player_stats['companion'] = 'christopher'
+            _game.player_stats['companion_hp'] = 100
+            _game.player_stats['companion_stunned_turns'] = 0
+
+        else:
+            _h('Christopher nickt dir ruhig zu.')
+            _h('"Ich bin bereit, wenn du es bist."')
+            _h('"Sag einfach, wenn es weitergehen soll."')
+            _h("")
+
+        return True
+
+    elif (_CHRISTOPHER_CMDS or _CHRISTOPHER_EXAMINE) and _game.current_room != 'coffeeshop':
+        comp = _game.player_stats.get('companion')
+        if comp == 'christopher':
+            _h('Christopher sieht dich kurz an.')
+            _h('"Alles klar? Ich bin dabei — ruf mich, wenn du mich brauchst."')
+            _h("")
+        elif comp == 'christopher_waiting':
+            _h('"Ich warte hier auf dich. Ruf mich, wenn es weitergeht."')
+            _h("[Tippe 'folge mir' um ihn wieder zu aktivieren.]")
+            _h("")
+        else:
+            _h("Christopher ist nicht in der Nähe.")
+            _h("Du kannst ihn im Coffeeshop treffen.")
+            _h("")
+        return True
+
+    # ------------------------------------------------------------------
+    # BEGLEITER-MANAGEMENT: folge mir / bleib hier / begleiter status
+    # ------------------------------------------------------------------
+    _FOLLOW_CMD = _has_any(cmd, 'folge', 'komm', 'begleite') and _has_any(cmd, 'mir', 'mich', 'christoph')
+    _STAY_CMD   = _has_any(cmd, 'bleib', 'warte', 'halt') and _has_any(cmd, 'hier', 'christoph', 'stop')
+    _COMP_STATUS = _has_any(cmd, 'begleiter', 'companion', 'christopher') and _has_any(cmd, 'status', 'zustand', 'hp', 'leben')
+
+    if _FOLLOW_CMD:
+        comp = _game.player_stats.get('companion')
+        if not comp:
+            _h("Du hast keinen Begleiter.")
+            _h("Finde Christopher im Coffeeshop und sprich mit ihm.")
+            _h("")
+        elif comp == 'christopher_waiting':
+            _game.player_stats['companion'] = 'christopher'
+            _h("Christopher schließt sich dir wieder an.")
+            _h(f"HP: {_game.player_stats['companion_hp']}/100")
+            _h("")
+        else:
+            _h("Christopher folgt dir bereits.")
+            _h(f"HP: {_game.player_stats['companion_hp']}/100")
+            stunned = _game.player_stats.get('companion_stunned_turns', 0)
+            if stunned > 0:
+                _h(f"Status: Verletzt — erholt sich in {stunned} Zügen.")
+            else:
+                _h("Status: Einsatzbereit")
+            _h("")
+        return True
+
+    if _STAY_CMD:
+        comp = _game.player_stats.get('companion')
+        if not comp:
+            _h("Du hast keinen Begleiter.")
+            _h("")
+        elif comp == 'christopher_waiting':
+            _h("Christopher wartet bereits.")
+            _h("")
+        else:
+            if _game.current_room in OUTDOOR_ROOMS:
+                _h('Christopher schüttelt den Kopf.')
+                _h('"Draußen bleiben? Nein. Da draußen bin ich ein leichtes Ziel."')
+                _h('"Sag mir wenn wir in einem Gebäude sind — dann warte ich gerne."')
+                _h("")
+            else:
+                _h("Christopher nickt. Er wartet hier auf dich.")
+                _h("[Begleiter-Boni temporär deaktiviert — 'folge mir' zum Reaktivieren]")
+                _game.player_stats['companion'] = 'christopher_waiting'
+                _h("")
+        return True
+
+    if _COMP_STATUS:
+        comp = _game.player_stats.get('companion')
+        if not comp:
+            _h("Du hast keinen aktiven Begleiter.")
+            _h("")
+        elif comp == 'christopher_waiting':
+            _h("Christopher wartet irgendwo auf dich.")
+            _h("Tippe 'folge mir' um ihn wieder zu aktivieren.")
+            _h("")
+        else:
+            hp = _game.player_stats['companion_hp']
+            stunned = _game.player_stats.get('companion_stunned_turns', 0)
+            _h("=== BEGLEITER: Christopher Thomson ===")
+            _h(f"HP: {hp}/100")
+            _h(f"Status: {'Verletzt (' + str(stunned) + ' Züge)' if stunned > 0 else 'Einsatzbereit'}")
+            _h("Kampf-Boni:")
+            _h("  - 25% Chance Gegenangriff abzufangen (-50% Schaden)")
+            _h("  - +10% Fernkampf-Genauigkeit")
+            _h("  - Passive HP-Regen nach Kämpfen")
+            _h("")
+        return True
 
     return False
 
