@@ -41,13 +41,13 @@ except ImportError:
 # =============================================================================
 
 # GitHub-Benutzername  (z. B. "maxmustermann")
-GITHUB_USER: str = "DEIN_GITHUB_BENUTZERNAME"
+GITHUB_USER: str = "CamiloisCoding"
 
 # Name des GitHub-Repositorys  (z. B. "dead-world")
-GITHUB_REPO: str = "DEIN_REPO_NAME"
+GITHUB_REPO: str = "Dead-World-Textadventure-Game"
 
 # Release-Tag: "latest" liefert immer den neuesten Release
-RELEASE_TAG: str = "latest"
+RELEASE_TAG: str = "game_exe"
 
 # Dateiname der Spiel-EXE im GitHub-Release (muss exakt übereinstimmen)
 RELEASE_ASSET: str = "DeadWorld.exe"
