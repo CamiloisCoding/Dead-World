@@ -263,6 +263,15 @@ OUTDOOR_ROOMS = {
     # Home-Depot-Umring (Außengelände)
     'home_depot_east', 'home_depot_se', 'home_depot_south', 'home_depot_sw',
     'home_depot_west', 'home_depot_nw', 'home_depot_north', 'home_depot_ne',
+    # Gebirgsgebiet & Flusstal
+    'berglandschaft', 'fluss',
+    # Walddorf-Dorfstraße & Umgebung
+    'walddorf_straße',
+    # Labyrinth (Außengänge)
+    'labyrinth_eingang', 'labyrinth_gang1', 'labyrinth_sackgasse1',
+    'labyrinth_kreuzung', 'labyrinth_sackgasse2', 'labyrinth_gang2', 'labyrinth_ausgang',
+    # Friedhof
+    'friedhof',
     # Casino-Straßen (Außenbereich)
     'casino_east', 'casino_se', 'casino_sw',
     # Außenbereich vor Haus 1 (vor der Haustür)

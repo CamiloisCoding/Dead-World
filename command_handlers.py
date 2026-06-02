@@ -65,6 +65,7 @@ def handle_help(cmd):
     _h("  stich auf [ziel] - Mit Messer angreifen (Timing-Leiste)")
     _h("  schieße auf [ziel] - Schusswaffe nutzen")
     _h("  nachladen - Ausgerüstete Schusswaffe nachladen (braucht Magazin im Inventar)")
+    _h("  ignoriere [ziel] - Gegner ignorieren (Kampfmodus beenden, Musik stoppt)")
     _h("  [Angriff] - LEERTASTE wenn der Marker die Mitte trifft!")
     _h("  [Gegenangriff] - Pfeiltasten: Herz ausweichen!")
     _h("")
@@ -163,6 +164,11 @@ def handle_item_commands(cmd):
 
     if cmd.startswith('nimm ') and ' aus ' not in cmd:
         item = cmd[5:].strip()
+        # Boot am Fluss kann nicht aufgehoben werden – stattdessen nutzen
+        if item in ('boot', 'boat', 'ruderboot') and _game.current_room == 'fluss':
+            _h("Das Boot ist zu groß zum Tragen. Tippe 'nutze boot', um damit zu fahren.")
+            _h("")
+            return True
         room = _game.rooms[_game.current_room]
         if item in room['items']:
             idef = _game.ITEM_DEFS.get(item)
@@ -284,6 +290,31 @@ def handle_item_commands(cmd):
         # Raum-Objekt (kein Inventar-Item) -> an Interaktions-Handler weitergeben
         if item in ('numpad', 'nummernpad', 'nummern pad'):
             return False
+
+        # Boot am Fluss benutzen → 2-stündige Bootsfahrt zur Walddorf-Dorfstraße
+        if item in ('boot', 'boat', 'ruderboot') and _game.current_room == 'fluss':
+            _h("")
+            _h("Du löst das Boot vom Pflock und steigst ein.")
+            _h("Die Strömung erfasst dich sofort — der Fluss ist tiefer als gedacht.")
+            _h("Du greifst die Ruder und richtest das Boot flussabwärts aus.")
+            _h("")
+            _h("Dunkle Bäume ziehen langsam an dir vorbei.")
+            _h("Nebel liegt über dem Wasser. Das Plätschern der Ruder ist das einzige Geräusch.")
+            _h("Einmal glaubst du, etwas Großes unter dem Boot zu spüren — dann ist es vorbei.")
+            _h("")
+            _h("        ... NACH ZWEI STUNDEN ...")
+            _h("")
+            _h("Das Ufer weicht zurück. Du siehst Lichter — nein, Fackeln.")
+            _h("Ein altes Dorf. Du legst an einem moosbedeckten Steg an.")
+            _h("")
+            _game.stop_zombie_sounds()
+            _game.stop_combat_sounds()
+            _game.player_stats['in_combat'] = False
+            _game.stop_combat_resume_ambient()
+            _game.current_room = 'walddorf_straße'
+            _game.visited_rooms.add('walddorf_straße')
+            _game.describe_room()
+            return True
 
         if item not in _game.player_inventory:
             _h(f"Du hast kein '{item}' im Inventar.")
@@ -499,6 +530,24 @@ def handle_combat_commands(cmd):
             _game.melee_attack(target)
         else:
             _game.unarmed_attack(target)
+        return True
+
+    if cmd.startswith('ignoriere ') or cmd == 'ignoriere' or \
+       cmd.startswith('ignore ') or cmd == 'ignore' or \
+       cmd.startswith('ignorier ') or cmd == 'ignorier':
+        room = _game.rooms[_game.current_room]
+        enemy_in_room = room.get('enemy')
+        if enemy_in_room:
+            enemy = enemies.get(enemy_in_room)
+            if enemy and enemy['health'] > 0:
+                _h(f"Du wendest den Blick ab und ignorierst {enemy['name']}.")
+                _h("Die Bedrohung ist noch da — aber du lässt sie vorerst hinter dir.")
+                _h("")
+                _game.player_stats['in_combat'] = False
+                _game.stop_combat_resume_ambient()
+                return True
+        _h("Es gibt hier nichts zu ignorieren.")
+        _h("")
         return True
 
     return False

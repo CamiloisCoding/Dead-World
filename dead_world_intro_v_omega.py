@@ -1638,10 +1638,10 @@ rooms = {
     },
     'casino_se': {#Stadt
         'name': 'Casino SE',
-        'description': 'Südöstliche Ecke am Casino. Im NORDEN liegt Casino East. Nach WESTEN führt die Straße zur Casino SW.',
-        'exits': {'norden': 'casino_east', 'westen': 'casino_sw'},
+        'description': 'Südöstliche Ecke am Casino. Im NORDEN liegt Casino East. Nach WESTEN führt die Straße zur Casino SW. Im SÜDEN öffnet sich das Land zu einer rauhen Gebirgslandschaft.',
+        'exits': {'norden': 'casino_east', 'westen': 'casino_sw', 'süden': 'berglandschaft'},
         'items': [],
-        'in_development': True,
+        'in_development': False,
         'spawn_chance': False,
         'zombie_spawn': False
     },
@@ -1997,6 +1997,195 @@ rooms = {
         'items': ['pistole', 'pistolen_munition', 'pistolen_munition', 'ak_munition'],
         'in_development': False,
         'spawn_chance': False,
+        'zombie_spawn': False
+    },
+
+    # ========================
+    # NEUES GEBIET: Gebirgslandschaft → Fluss → Walddorf → Labyrinth → Friedhof
+    # ========================
+    'berglandschaft': {
+        'name': 'Gebirgslandschaft',
+        'description': (
+            'Du stehst am Rand einer zerklüfteten Gebirgslandschaft. '
+            'Graue Felsmassive ragen in den verhangenen Himmel. Schroffe Klippen fallen zu beiden Seiten ab, '
+            'und der Wind pfeift kalt durch die Felspalten. '
+            'Ein schmaler, steiniger Pfad schlängelt sich nach WESTEN hinunter Richtung Tal — '
+            'ein mindestens einstündiger Marsch. '
+            'Im NORDEN liegt das Casino.'
+        ),
+        'exits': {'norden': 'casino_se', 'westen': 'fluss'},
+        'travel_time_exits': {'westen': 1},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'fluss': {
+        'name': 'Fluss',
+        'description': (
+            'Ein breiter, träge fließender Fluss durchzieht das Tal. '
+            'Das Wasser ist dunkelbraun und undurchsichtig — man sieht nicht, was darunter lauert. '
+            'Das Ufer ist schlammig und riecht nach feuchtem Holz und Verwesung. '
+            'Am Ufer liegt ein verwittertes BOOT, das an einem Pflock festgemacht ist. '
+            'Es sieht noch seetüchtig aus. Schnitzereien an der Bordwand zeigen einen Weg '
+            'flussabwärts — etwa zwei Stunden Fahrt. '
+            'Der Weg nach OSTEN führt zurück zur Gebirgslandschaft. '
+            'Tippe "nutze boot", um das Boot flussabwärts zu nehmen.'
+        ),
+        'exits': {'osten': 'berglandschaft'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'walddorf_straße': {
+        'name': 'Walddorf-Dorfstraße',
+        'description': (
+            'Eine moosbedeckte Dorfstraße, umgeben von uralten Bäumen, '
+            'deren Äste sich wie ein grünes Gewölbe über den Weg wölben. '
+            'Die Luft ist feucht und riecht nach Erde und altem Holz. '
+            'Verlassene Holzhäuser stehen zu beiden Seiten — Fensterläden schlagen im Wind. '
+            'Im WESTEN führt eine ausgetretene Steintreppe in die Tiefe, '
+            'zu einem unterirdischen Eingang. '
+            'Im OSTEN erhebt sich eine alte Steinmauer — dahinter liegt ein Labyrinth.'
+        ),
+        'exits': {'westen': 'sex_dungeon', 'osten': 'labyrinth_eingang'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'sex_dungeon': {
+        'name': 'Sex Dungeon',
+        'description': (
+            'Eine feuchte, schlecht beleuchtete Kammer, tief in den Fels gehauen. '
+            'Verwitterte Fesselvorrichtungen hängen an den Wänden, Ketten rosten in den Ecken. '
+            'Der Boden ist kalt und nass. Ein beißender Geruch nach Moder, '
+            'Schimmel und etwas Unaussprechlichem liegt in der Luft. '
+            'In den Wänden sind Namen eingekratzt — viele Namen. '
+            'Die einzige Möglichkeit raus ist nach OSTEN.'
+        ),
+        'exits': {'osten': 'walddorf_straße'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'labyrinth_eingang': {
+        'name': 'Labyrinth – Eingang',
+        'description': (
+            'Ein verwittertes Steintor markiert den Eingang des Labyrinths. '
+            'Efeu überwuchert die alten Mauern, und moosige Steine bedecken den Boden. '
+            'Ein verblasstes Schild warnt: "Kehr um — oder verliere dich für immer." '
+            'Der Weg nach WESTEN führt zurück zur Dorfstraße. '
+            'Nach NORDEN beginnen die Gänge des Labyrinths.'
+        ),
+        'exits': {'westen': 'walddorf_straße', 'norden': 'labyrinth_gang1'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'labyrinth_gang1': {
+        'name': 'Labyrinth – Erster Gang',
+        'description': (
+            'Hohe Steinmauern erheben sich zu beiden Seiten. '
+            'Fackeln an den Wänden brennen mit einem blassen, kalten Licht. '
+            'Der Gang gabelt sich: Nach NORDEN liegt Dunkelheit, '
+            'im OSTEN führt ein schmalerer Pfad ab. '
+            'Im SÜDEN ist der Eingang.'
+        ),
+        'exits': {'süden': 'labyrinth_eingang', 'norden': 'labyrinth_kreuzung', 'osten': 'labyrinth_sackgasse1'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'labyrinth_sackgasse1': {
+        'name': 'Labyrinth – Sackgasse',
+        'description': (
+            'Die Mauern verengen sich zu einer engen Sackgasse. '
+            'An der Steinwand hat jemand mit einem Nagel geritzt: "NICHT HIER." '
+            'Getrocknetes Blut klebt am Boden. '
+            'Du musst zurück nach WESTEN.'
+        ),
+        'exits': {'westen': 'labyrinth_gang1'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'labyrinth_kreuzung': {
+        'name': 'Labyrinth – Kreuzung',
+        'description': (
+            'Du stehst an einer Kreuzung im Herzen des Labyrinths. '
+            'Vier Richtungen, eine richtige. Im WESTEN klingt der Gang hohl wie eine Kammer. '
+            'Im OSTEN führt ein schmaler Pfad weiter. '
+            'Im SÜDEN ist der Gang zurück.'
+        ),
+        'exits': {'süden': 'labyrinth_gang1', 'westen': 'labyrinth_sackgasse2', 'osten': 'labyrinth_gang2'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'labyrinth_sackgasse2': {
+        'name': 'Labyrinth – Zweite Sackgasse',
+        'description': (
+            'Ein feuchter, niedriger Tunnel endet abrupt vor einer blinden Mauer. '
+            'Knochen liegen verstreut am Boden — jemand kam hierher und fand keinen Weg zurück. '
+            'Ein faustgroßes Loch in der Wand blickt in absolute Schwärze. '
+            'Du wendest dich um und gehst nach OSTEN.'
+        ),
+        'exits': {'osten': 'labyrinth_kreuzung'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'labyrinth_gang2': {
+        'name': 'Labyrinth – Letzter Gang',
+        'description': (
+            'Der Gang wird breiter, die Mauern weichen zurück. '
+            'Kaltes graues Licht sickert von NORDEN herein — du spürst frische Luft. '
+            'Das Labyrinth liegt fast hinter dir. '
+            'Nach WESTEN ist die Kreuzung. Nach NORDEN liegt der Ausgang.'
+        ),
+        'exits': {'westen': 'labyrinth_kreuzung', 'norden': 'labyrinth_ausgang'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'labyrinth_ausgang': {
+        'name': 'Labyrinth – Ausgang',
+        'description': (
+            'Du hast das Labyrinth durchquert. '
+            'Das alte Steintor im NORDEN steht einen Spalt offen — '
+            'dahinter liegt ein stiller, überwucherter Friedhof. '
+            'Hinter dir im SÜDEN liegt das Dunkel der Gänge.'
+        ),
+        'exits': {'süden': 'labyrinth_gang2', 'norden': 'friedhof'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': False,
+        'zombie_spawn': False
+    },
+    'friedhof': {
+        'name': 'Friedhof',
+        'description': (
+            'Du stehst auf einem alten, verlassenen Friedhof. '
+            'Verwitterte Grabsteine ragen aus dem hohen Gras, einige von ihnen '
+            'frisch aufgewühlt — als hätte etwas von innen gegraben. '
+            'Eine abgestorbene Eiche ragt in der Mitte des Friedhofs auf, '
+            'ihre nackten Äste greifen wie Klauen in den Himmel. '
+            'Die Stille hier ist anders als anderswo — schwerer, erwartungsvoller. '
+            'Im SÜDEN liegt der Ausgang des Labyrinths.'
+        ),
+        'exits': {'süden': 'labyrinth_ausgang'},
+        'items': [],
+        'in_development': False,
+        'spawn_chance': True,
         'zombie_spawn': False
     },
 
@@ -2991,7 +3180,13 @@ def move_direction(direction):
     if rooms.get(current_room, {}).get('trigger_timeskip') and target == 'spawn':
         trigger_two_year_timeskip()
         return
-    
+
+    # Reisezeit-Trigger: bestimmte Ausgänge kosten Stunden (z.B. Bergpfad)
+    travel_time = rooms.get(current_room, {}).get('travel_time_exits', {}).get(_normalize_direction(direction))
+    if travel_time:
+        _trigger_travel_time(direction, target, travel_time)
+        return
+
     # 50% Zombie-Spawn in target rooms with spawn_chance (mit 5-Min-Cooldown)
     next_room = rooms.get(target)
     if next_room and next_room.get('spawn_chance') and spawn_chance():
@@ -3004,6 +3199,8 @@ def move_direction(direction):
     # Zombie-Sound beim Raumwechsel ausblenden (auch wenn Zombie noch lebt)
     _ZOMBIE_CH.fadeout(800)
     stop_combat_sounds()
+    # Kampfstatus zurücksetzen wenn Spieler den Kampf flieht
+    player_stats['in_combat'] = False
     # Kampfmusik → Ambient wenn Spieler den Kampf flieht oder Zombie ignoriert
     stop_combat_resume_ambient()
 
@@ -3015,6 +3212,44 @@ def move_direction(direction):
         add_to_history("Christopher folgt dir.")
     add_to_history("")
     describe_room()
+
+def _trigger_travel_time(direction, target, hours):
+    """Narrativer Übergang für lange Reisen (Stunden-Marsch oder Fahrt)."""
+    global current_room
+    stop_zombie_sounds()
+    stop_combat_sounds()
+    player_stats['in_combat'] = False
+    stop_combat_resume_ambient()
+    _ZOMBIE_CH.fadeout(800)
+
+    add_to_history("")
+    add_to_history(f"Du gehst nach {direction.upper()}...")
+    add_to_history("")
+
+    if hours == 1:
+        add_to_history("Der Pfad ist beschwerlich. Steine rollen unter deinen Füßen weg.")
+        add_to_history("Du kletterst über Geröll, schiebst dich durch enge Felspassagen.")
+        add_to_history("Der Wind peitscht kalt von den Gipfeln herab.")
+        add_to_history("")
+        add_to_history("        ... NACH EINER STUNDE ...")
+        add_to_history("")
+        add_to_history("Das Tal öffnet sich vor dir. Du hörst Wasser.")
+    elif hours == 2:
+        add_to_history("Du stößt das Boot vom Ufer, greifst die Ruder.")
+        add_to_history("Der Fluss trägt dich ruhig dahin. Bäume gleiten vorbei.")
+        add_to_history("Das Rauschen des Wassers übertönt alles andere.")
+        add_to_history("")
+        add_to_history("        ... NACH ZWEI STUNDEN ...")
+        add_to_history("")
+        add_to_history("Das Ufer weicht zurück. Du legst an einem fremden Dorf an.")
+    else:
+        add_to_history(f"Nach etwa {hours} Stunde(n) erreichst du dein Ziel.")
+
+    add_to_history("")
+    current_room = target
+    visited_rooms.add(current_room)
+    describe_room()
+
 
 def trigger_two_year_timeskip():
     """Triggert den 2-Jahres-Zeitsprung zum Spawn-Haus"""
